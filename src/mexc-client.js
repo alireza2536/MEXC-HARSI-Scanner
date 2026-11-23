@@ -16,14 +16,13 @@ export function isStablecoinBaseAsset(baseCoin) {
   return STABLECOIN_BASE_ASSETS.has(String(baseCoin || "").trim().toUpperCase());
 }
 
-// Traditional-market instruments and fiat currencies are not cryptocurrencies.
-// Gold-backed crypto tokens such as PAXG and XAUT are intentionally not listed.
+// Traditional-market instruments, fiat currencies, and gold-backed tokens are excluded.
 export const TRADITIONAL_MARKET_BASE_ASSETS = new Set([
   // Precious metals and energy markets
   "XAU", "XAG", "GOLD", "SILVER", "PLATINUM", "PALLADIUM",
   "OIL", "WTI", "BRENT", "USOIL", "UKOIL", "CRUDEOIL",
   "NG", "NGAS", "NATGAS", "GAS", "NATURALGAS",
-  "COPPER",
+  "COPPER", "PAXG", "XAUT",
   // Equity indices and volatility indices
   "DXY", "SPX", "SP500", "US500", "NAS100", "US100", "NASDAQ",
   "US30", "DJ30", "DOW", "GER40", "DE40", "DAX", "UK100",
