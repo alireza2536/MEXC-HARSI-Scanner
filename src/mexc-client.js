@@ -16,6 +16,34 @@ export function isStablecoinBaseAsset(baseCoin) {
   return STABLECOIN_BASE_ASSETS.has(String(baseCoin || "").trim().toUpperCase());
 }
 
+// Traditional-market instruments and fiat currencies are not cryptocurrencies.
+// Gold-backed crypto tokens such as PAXG and XAUT are intentionally not listed.
+export const TRADITIONAL_MARKET_BASE_ASSETS = new Set([
+  // Precious metals and energy markets
+  "XAU", "XAG", "GOLD", "SILVER", "PLATINUM", "PALLADIUM",
+  "OIL", "WTI", "BRENT", "USOIL", "UKOIL", "CRUDEOIL",
+  "NG", "NGAS", "NATGAS", "GAS", "NATURALGAS",
+  "COPPER",
+  // Equity indices and volatility indices
+  "DXY", "SPX", "SP500", "US500", "NAS100", "US100", "NASDAQ",
+  "US30", "DJ30", "DOW", "GER40", "DE40", "DAX", "UK100",
+  "FTSE", "JP225", "NIKKEI", "HK50", "HSI", "FRA40", "CAC40",
+  "AUS200", "ASX200", "VIX",
+  // Fiat currencies
+  "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD",
+  "CNY", "CNH", "HKD", "SGD", "INR", "KRW", "TRY", "RUB",
+  "BRL", "MXN", "ZAR", "AED", "SAR", "PLN", "SEK", "NOK",
+  "DKK", "THB", "IDR", "PHP", "VND"
+]);
+
+export function isTraditionalMarketBaseAsset(baseCoin) {
+  return TRADITIONAL_MARKET_BASE_ASSETS.has(String(baseCoin || "").trim().toUpperCase());
+}
+
+export function isEligibleCryptoBaseAsset(baseCoin) {
+  return !isStablecoinBaseAsset(baseCoin) && !isTraditionalMarketBaseAsset(baseCoin);
+}
+
 export class MexcClient {
   #lastRequestAt = 0;
 
@@ -90,8 +118,8 @@ export class MexcClient {
         const isUsdt = contract.quoteCoin === "USDT" && contract.settleCoin === "USDT";
         const isEnabled = Number(contract.state) === 0;
         const baseCoin = contract.baseCoin || String(contract.symbol || "").replace(/USDT$/i, "");
-        const isNotStablecoin = !isStablecoinBaseAsset(baseCoin);
-        return isUsdt && isEnabled && isNotStablecoin && tickerBySymbol.has(contract.symbol);
+        const isEligibleCrypto = isEligibleCryptoBaseAsset(baseCoin);
+        return isUsdt && isEnabled && isEligibleCrypto && tickerBySymbol.has(contract.symbol);
       })
       .map((contract) => {
         const ticker = tickerBySymbol.get(contract.symbol);
