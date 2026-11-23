@@ -26,7 +26,7 @@ export class MexcClient {
     }
 
     const body = await response.json();
-    if (body?.success === false || (body?.code !== undefined && body.code !== 0)) {
+    if (body?.success === false || (body?.code !== undefined && Number(body.code) !== 0)) {
       throw new Error(`MEXC API error for ${path}: ${body.message || body.code || "unknown"}`);
     }
     return body?.data;
@@ -46,15 +46,36 @@ export class MexcClient {
     ]);
 
     const contracts = Array.isArray(contractsData) ? contractsData : [];
-    const tickers = Array.isArray(tickerData) ? tickerData : (tickerData ? [tickerData] : []);
+    let tickers = Array.isArray(tickerData) ? tickerData : [];
+
+    // Some API responses return a single ticker object instead of the full ticker list.
+    // In that case, query the remaining contracts individually so no symbols are silently skipped.
+    if (!Array.isArray(tickerData) && contracts.length > 1) {
+      const first = tickerData?.symbol ? [tickerData] : [];
+      const firstSymbols = new Set(first.map((item) => item.symbol));
+      tickers = [...first];
+      for (const contract of contracts) {
+        if (firstSymbols.has(contract.symbol)) continue;
+        try {
+          const ticker = await this.#get("/api/v1/contract/ticker", { symbol: contract.symbol });
+          if (ticker && !Array.isArray(ticker)) tickers.push(ticker);
+          else if (Array.isArray(ticker)) tickers.push(...ticker);
+        } catch (error) {
+          // Missing ticker for one contract should not stop collection for all other contracts.
+          console.warn(JSON.stringify({ event: "ticker_fetch_failed", symbol: contract.symbol, error: error.message }));
+        }
+      }
+    } else if (!Array.isArray(tickerData) && tickerData) {
+      tickers = [tickerData];
+    }
+
     const tickerBySymbol = new Map(tickers.map((item) => [item.symbol, item]));
 
     return contracts
       .filter((contract) => {
         const isUsdt = contract.quoteCoin === "USDT" && contract.settleCoin === "USDT";
-        const isPerpetual = contract.futureType === undefined || Number(contract.futureType) === 1;
-        const isEnabled = contract.state === undefined || Number(contract.state) === 0;
-        return isUsdt && isPerpetual && isEnabled && tickerBySymbol.has(contract.symbol);
+        const isEnabled = Number(contract.state) === 0;
+        return isUsdt && isEnabled && tickerBySymbol.has(contract.symbol);
       })
       .map((contract) => {
         const ticker = tickerBySymbol.get(contract.symbol);
@@ -80,16 +101,24 @@ export class MexcClient {
       }
     }
 
-    return data.time.map((time, index) => ({
-      symbol,
-      open_time: new Date(Number(time) * 1000).toISOString(),
-      close_time: new Date((Number(time) + 900) * 1000).toISOString(),
-      open_price: Number(data.open[index]),
-      high_price: Number(data.high[index]),
-      low_price: Number(data.low[index]),
-      close_price: Number(data.close[index]),
-      volume: Number(data.vol[index]),
-      amount: Number(data.amount[index])
-    }));
+    return data.time.map((time, index) => {
+      const values = {
+        open_price: Number(data.open[index]),
+        high_price: Number(data.high[index]),
+        low_price: Number(data.low[index]),
+        close_price: Number(data.close[index]),
+        volume: Number(data.vol[index]),
+        amount: Number(data.amount[index])
+      };
+      if (!Number.isFinite(Number(time)) || !Object.values(values).every(Number.isFinite)) {
+        throw new Error(`Non-numeric candle values received for ${symbol} at index ${index}`);
+      }
+      return {
+        symbol,
+        open_time: new Date(Number(time) * 1000).toISOString(),
+        close_time: new Date((Number(time) + 900) * 1000).toISOString(),
+        ...values
+      };
+    });
   }
 }
