@@ -8,7 +8,7 @@ const { Pool } = pg;
 const CANDLE_SECONDS = 15 * 60;
 const HISTORY_CANDLES = 2000;
 const CACHE_LIMIT = HISTORY_CANDLES + 1;
-const PILOT_SYMBOL = "AKE_USDT";
+const PILOT_SYMBOL = "ONE_USDT";
 
 // This cache lives only in the running server process. It is intentionally
 // not written to the database and is rebuilt after a process restart.
@@ -23,10 +23,10 @@ function currentCandleFrom(candles, currentOpen) {
 }
 
 /**
- * One-shot, read-only diagnostic for comparing 2,000 vs 2,323 prior AKE candles.
+ * One-shot, read-only diagnostic for comparing 2,000 vs 2,323 prior ONE candles.
  * It does not touch the live cache or database.
  */
-const DIAGNOSTIC_SYMBOLS = new Set(["AKE_USDT", "TA_USDT"]);
+const DIAGNOSTIC_SYMBOLS = new Set(["ONE_USDT", "TA_USDT"]);
 
 export async function runAkeHistoryDiagnostic(symbol = PILOT_SYMBOL) {
   if (!DIAGNOSTIC_SYMBOLS.has(symbol)) throw new Error("این نماد برای آزمایش مجاز نیست.");
@@ -104,7 +104,7 @@ async function bootstrapAkeHistory(mexc, currentOpen, nowSeconds) {
 
   if (historical.length !== HISTORY_CANDLES) {
     throw new Error(
-      `AKE history is incomplete: expected ${HISTORY_CANDLES} prior candles, received ${historical.length}`
+      `ONE history is incomplete: expected ${HISTORY_CANDLES} prior candles, received ${historical.length}`
     );
   }
 
@@ -115,7 +115,7 @@ async function bootstrapAkeHistory(mexc, currentOpen, nowSeconds) {
   );
   const current = currentCandleFrom(currentResponse, currentOpen);
   if (!current) {
-    throw new Error("MEXC did not return the currently forming AKE candle.");
+    throw new Error("MEXC did not return the currently forming ONE candle.");
   }
 
   return mergeCandleHistory(historical, [current], CACHE_LIMIT);
@@ -125,7 +125,7 @@ async function getAkeCandles(mexc, currentOpen, nowSeconds) {
   if (cachedCandles.length === 0) {
     const initial = await bootstrapAkeHistory(mexc, currentOpen, nowSeconds);
     cachedCandles = initial;
-    log("ake_history_initialized", {
+    log("one_history_initialized", {
       historicalCandles: HISTORY_CANDLES,
       totalCandlesInMemory: cachedCandles.length
     });
@@ -140,7 +140,7 @@ async function getAkeCandles(mexc, currentOpen, nowSeconds) {
   if (missingBars > HISTORY_CANDLES - 1) {
     const rebuilt = await bootstrapAkeHistory(mexc, currentOpen, nowSeconds);
     cachedCandles = rebuilt;
-    log("ake_history_rebuilt", {
+    log("one_history_rebuilt", {
       reason: "incremental_gap_exceeded_cache_window",
       historicalCandles: HISTORY_CANDLES
     });
@@ -156,7 +156,7 @@ async function getAkeCandles(mexc, currentOpen, nowSeconds) {
   );
   const updated = mergeCandleHistory(cachedCandles, incoming, CACHE_LIMIT);
   if (!currentCandleFrom(updated, currentOpen)) {
-    throw new Error("The incremental MEXC update did not include the current AKE candle.");
+    throw new Error("The incremental MEXC update did not include the current ONE candle.");
   }
 
   cachedCandles = updated;
@@ -188,12 +188,12 @@ export async function runLiveScan() {
 
     const candles = await getAkeCandles(mexc, currentOpen, nowSeconds);
     const current = currentCandleFrom(candles, currentOpen);
-    if (!current) throw new Error("Current AKE candle is missing from the in-memory history.");
+    if (!current) throw new Error("Current ONE candle is missing from the in-memory history.");
 
     const harsiRows = calculateHarsi(candles);
     const currentHarsi = harsiRows.find((row) => row.open_time === current.open_time);
     if (!currentHarsi) {
-      throw new Error("HARSI value is not ready for the current AKE candle.");
+      throw new Error("HARSI value is not ready for the current ONE candle.");
     }
 
     // Preserve the existing database behavior for the current candle/result only.
