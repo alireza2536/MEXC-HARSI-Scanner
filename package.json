@@ -1,0 +1,16 @@
+{
+  "name": "mexc-harsi-scanner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "scan": "node src/scanner.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.119.0"
+  }
+}
