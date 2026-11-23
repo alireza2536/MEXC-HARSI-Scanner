@@ -32,7 +32,7 @@ export async function runAkeHistoryDiagnostic() {
   const nowSeconds = Math.floor(serverNowMs / 1000);
   const currentOpen = Math.floor(nowSeconds / CANDLE_SECONDS) * CANDLE_SECONDS;
   const latestStart = currentOpen - (HISTORY_CANDLES * CANDLE_SECONDS);
-  const extendedStart = currentOpen - (2323 * CANDLE_SECONDS);
+  const extendedStart = currentOpen - (2322 * CANDLE_SECONDS);
 
   const [latestHistory, extendedHistory, currentResponse] = await Promise.all([
     mexc.get15mCandles(PILOT_SYMBOL, latestStart, currentOpen - 1),
@@ -44,15 +44,15 @@ export async function runAkeHistoryDiagnostic() {
     .filter((candle) => Date.parse(candle.open_time) < currentOpen * 1000)
     .sort((a, b) => Date.parse(a.open_time) - Date.parse(b.open_time));
   const uniquePrior = [...new Map(prior.map((candle) => [candle.open_time, candle])).values()];
-  if (uniquePrior.length !== 2323) {
-    throw new Error(`AKE diagnostic history is incomplete: expected 2323 prior candles, received ${uniquePrior.length}`);
+  if (uniquePrior.length !== 2322) {
+    throw new Error(`AKE diagnostic history is incomplete: expected 2322 prior candles, received ${uniquePrior.length}`);
   }
 
   const current = currentCandleFrom(currentResponse, currentOpen);
   if (!current) throw new Error("MEXC did not return the current AKE candle for diagnostic.");
 
   const history2000 = [...uniquePrior.slice(-2000), current];
-  const history2323 = [...uniquePrior, current];
+  const history2323 = [...uniquePrior.slice(-2322), current];
   const result2000 = calculateHarsi(history2000).find((row) => row.open_time === current.open_time);
   const result2323 = calculateHarsi(history2323).find((row) => row.open_time === current.open_time);
   if (!result2000 || !result2323) throw new Error("HARSI diagnostic result is not ready.");
@@ -63,14 +63,14 @@ export async function runAkeHistoryDiagnostic() {
     calculationVersion: result2323.calculation_version,
     candleOpenTime: current.open_time,
     candleState: "currently_forming",
-    historicalCandles: { comparison: 2000, extended: 2323 },
+    candleCounts: { comparisonTotal: 2001, extendedTotal: 2323 },
     comparison: {
-      historicalCandles: 2000,
+      priorCandles: 2000,
       totalCandlesIncludingCurrent: history2000.length,
       haClose: result2000.ha_close
     },
     extended: {
-      historicalCandles: 2323,
+      priorCandles: 2322,
       totalCandlesIncludingCurrent: history2323.length,
       haClose: result2323.ha_close
     },
