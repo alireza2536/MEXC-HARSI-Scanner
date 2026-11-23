@@ -3,8 +3,6 @@ import { config } from "./config.js";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Base-asset codes for fiat-pegged and other stable-value tokens.
-// This is deliberately separate from the price filter: it only excludes
-// stablecoins and does not impose any additional market/volume criteria.
 export const STABLECOIN_BASE_ASSETS = new Set([
   "USDT", "USDC", "BUSD", "TUSD", "FDUSD", "USDP", "DAI", "USDS",
   "USDE", "USDD", "PYUSD", "GUSD", "FRAX", "LUSD", "CRVUSD", "SUSD",
@@ -18,17 +16,13 @@ export function isStablecoinBaseAsset(baseCoin) {
 
 // Traditional-market instruments, fiat currencies, and gold-backed tokens are excluded.
 export const TRADITIONAL_MARKET_BASE_ASSETS = new Set([
-  // Precious metals and energy markets
   "XAU", "XAG", "GOLD", "SILVER", "PLATINUM", "PALLADIUM",
   "OIL", "WTI", "BRENT", "USOIL", "UKOIL", "CRUDEOIL",
-  "NG", "NGAS", "NATGAS", "GAS", "NATURALGAS",
-  "COPPER", "PAXG", "XAUT",
-  // Equity indices and volatility indices
+  "NG", "NGAS", "NATGAS", "GAS", "NATURALGAS", "COPPER", "PAXG", "XAUT",
   "DXY", "SPX", "SP500", "US500", "NAS100", "US100", "NASDAQ",
   "US30", "DJ30", "DOW", "GER40", "DE40", "DAX", "UK100",
   "FTSE", "JP225", "NIKKEI", "HK50", "HSI", "FRA40", "CAC40",
   "AUS200", "ASX200", "VIX",
-  // Fiat currencies
   "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD",
   "CNY", "CNH", "HKD", "SGD", "INR", "KRW", "TRY", "RUB",
   "BRL", "MXN", "ZAR", "AED", "SAR", "PLN", "SEK", "NOK",
@@ -39,10 +33,36 @@ export function isTraditionalMarketBaseAsset(baseCoin) {
   return TRADITIONAL_MARKET_BASE_ASSETS.has(String(baseCoin || "").trim().toUpperCase());
 }
 
-// MEXC stock-linked contracts can include STOCK in the base asset or symbol.
-// Exclude them independently of the existing crypto, stablecoin, and price filters.
 export function isStockInstrument(value) {
   return String(value || "").trim().toUpperCase().includes("STOCK");
+}
+
+// MEXC contract detail does not expose a universal asset-class field.
+// Use all descriptive metadata it does provide to reject explicitly tagged
+// equities, ETFs, indices, FX, and commodity instruments. Do not infer that
+// an arbitrary ticker-shaped baseCoin is a stock: many crypto assets use that form.
+const NON_CRYPTO_METADATA_PATTERN =
+  /(?:^|[^A-Z0-9])(?:STOCKS?|EQUIT(?:Y|IES)|SHARES?|ETF|ETFS|INDEX|INDICES|INDUSTRIALS?|COMMODIT(?:Y|IES)|PRECIOUS\s+METALS?|FOREX|FX\s+PAIR|CURRENCY\s+PAIR|ENERGY\s+MARKET)(?:$|[^A-Z0-9])/i;
+
+export function isNonCryptoInstrument(contract = {}) {
+  const baseCoin = contract.baseCoin || String(contract.symbol || "").replace(/[_-]?USDT$/i, "");
+  if (!isEligibleCryptoBaseAsset(baseCoin) || isStockInstrument(contract.symbol)) return true;
+
+  const metadata = [
+    contract.displayName,
+    contract.displayNameEn,
+    contract.baseCoinName,
+    contract.conceptPlate,
+    contract.conceptPlateName,
+    contract.category,
+    contract.assetType,
+    contract.instrumentType
+  ].flat(Infinity).filter(Boolean).join(" ");
+
+  return NON_CRYPTO_METADATA_PATTERN.test(metadata)
+    || /(?:^|[^A-Z0-9])(?:SPX|SP500|US500|NAS100|US100|NASDAQ|US30|DJ30|DAX|GER40|DE40|UK100|FTSE|JP225|NIKKEI|HK50|HSI|VIX)(?:$|[^A-Z0-9])/i.test(
+      [contract.symbol, baseCoin].filter(Boolean).join(" ")
+    );
 }
 
 export function isEligibleCryptoBaseAsset(baseCoin) {
@@ -97,8 +117,6 @@ export class MexcClient {
     const contracts = Array.isArray(contractsData) ? contractsData : [];
     let tickers = Array.isArray(tickerData) ? tickerData : [];
 
-    // Some API responses return a single ticker object instead of the full ticker list.
-    // In that case, query the remaining contracts individually so no symbols are silently skipped.
     if (!Array.isArray(tickerData) && contracts.length > 1) {
       const first = tickerData?.symbol ? [tickerData] : [];
       const firstSymbols = new Set(first.map((item) => item.symbol));
@@ -110,7 +128,6 @@ export class MexcClient {
           if (ticker && !Array.isArray(ticker)) tickers.push(ticker);
           else if (Array.isArray(ticker)) tickers.push(...ticker);
         } catch (error) {
-          // Missing ticker for one contract should not stop collection for all other contracts.
           console.warn(JSON.stringify({ event: "ticker_fetch_failed", symbol: contract.symbol, error: error.message }));
         }
       }
@@ -124,10 +141,7 @@ export class MexcClient {
       .filter((contract) => {
         const isUsdt = contract.quoteCoin === "USDT" && contract.settleCoin === "USDT";
         const isEnabled = Number(contract.state) === 0;
-        const baseCoin = contract.baseCoin || String(contract.symbol || "").replace(/USDT$/i, "");
-        const isEligibleCrypto = isEligibleCryptoBaseAsset(baseCoin);
-        const isNotStockContract = !isStockInstrument(contract.symbol);
-        return isUsdt && isEnabled && isEligibleCrypto && isNotStockContract && tickerBySymbol.has(contract.symbol);
+        return isUsdt && isEnabled && !isNonCryptoInstrument(contract) && tickerBySymbol.has(contract.symbol);
       })
       .map((contract) => {
         const ticker = tickerBySymbol.get(contract.symbol);
