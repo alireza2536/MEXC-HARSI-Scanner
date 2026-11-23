@@ -55,7 +55,7 @@ const server = http.createServer(async (request, response) => {
     return sendJson(response, 200, job);
   }
 
-  if (request.method === "POST" && url.pathname === "/api/diagnostic/ake-history-2323") {
+  if (request.method === "POST" && ["/api/diagnostic/ake-history-2323", "/api/diagnostic/history-2323"].includes(url.pathname)) {
     const origin = request.headers.origin;
     const host = request.headers.host;
     if (origin) {
@@ -74,7 +74,8 @@ const server = http.createServer(async (request, response) => {
     diagnosticRunning = true;
     lastDiagnosticAt = Date.now();
     try {
-      const result = await runAkeHistoryDiagnostic();
+      const symbol = url.searchParams.get("symbol") || "AKE_USDT";
+      const result = await runAkeHistoryDiagnostic(symbol);
       return sendJson(response, 200, result);
     } catch (error) {
       console.error(JSON.stringify({ event: "ake_harsi_history_diagnostic_failed", error: error.message }));
