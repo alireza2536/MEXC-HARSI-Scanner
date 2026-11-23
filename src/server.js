@@ -14,6 +14,25 @@ let job = { status: "idle", startedAt: null, finishedAt: null, error: null, summ
 let running = false;
 let lastStartedAt = 0;
 
+function startLiveScan(source) {
+  if (running) return false;
+  running = true;
+  lastStartedAt = Date.now();
+  job = { status: "running", startedAt: new Date().toISOString(), finishedAt: null, error: null, summary: null };
+  console.log(JSON.stringify({ event: "live_scan_triggered", source }));
+
+  runLiveScan()
+    .then((summary) => {
+      job = { ...job, status: "completed", finishedAt: new Date().toISOString(), summary };
+    })
+    .catch((error) => {
+      console.error(JSON.stringify({ event: "live_scan_fatal", source, error: error.message }));
+      job = { ...job, status: "failed", finishedAt: new Date().toISOString(), error: error.message };
+    })
+    .finally(() => { running = false; });
+  return true;
+}
+
 function sendJson(response, status, body) {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -51,21 +70,8 @@ const server = http.createServer(async (request, response) => {
     const wait = MIN_START_GAP_MS - (Date.now() - lastStartedAt);
     if (wait > 0) return sendJson(response, 429, { error: "لطفاً کمی صبر کنید و دوباره تلاش کنید.", retryAfterMs: wait });
 
-    running = true;
-    lastStartedAt = Date.now();
-    job = { status: "running", startedAt: new Date().toISOString(), finishedAt: null, error: null, summary: null };
-    sendJson(response, 202, { accepted: true, job });
-
-    runLiveScan()
-      .then((summary) => {
-        job = { ...job, status: "completed", finishedAt: new Date().toISOString(), summary };
-      })
-      .catch((error) => {
-        console.error(JSON.stringify({ event: "live_scan_fatal", error: error.message }));
-        job = { ...job, status: "failed", finishedAt: new Date().toISOString(), error: error.message };
-      })
-      .finally(() => { running = false; });
-    return;
+    startLiveScan("manual");
+    return sendJson(response, 202, { accepted: true, job });
   }
 
   if (request.method === "GET" && url.pathname === "/") {
@@ -87,6 +93,10 @@ const server = http.createServer(async (request, response) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`MEXC live scanner web server listening on ${HOST}:${PORT}`);
+  // Start the AKE pilot once the HTTP server is listening. This runs after
+  // every process start/restart; the existing in-process candle cache is
+  // initialized by the scan and remains unchanged for later refreshes.
+  startLiveScan("server_startup");
 });
 
 function shutdown() {
