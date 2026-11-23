@@ -58,7 +58,7 @@
   <section class="panel">
     <h1>آزمایش مقایسه تاریخچه HARSI</h1>
     <p class="muted" style="text-align:center">انتخاب نماد برای آزمایش در تایم‌فریم ۱۵ دقیقه؛ مقایسه تاریخچه ۲۰۰۱ و ۲۳۲۳ کندلی، بدون تغییر در اسکن اصلی.</p>
-    <div class="diagnostic-actions"><button id="runAkeDiagnostic" type="button">آزمایش AKE_USDT</button><button id="runTaDiagnostic" type="button">آزمایش TA_USDT</button></div>
+    <div class="diagnostic-actions"><button id="runOneDiagnostic" type="button">آزمایش ONE_USDT</button><button id="runTaDiagnostic" type="button">آزمایش TA_USDT</button></div>
     <div id="diagnosticStatus" class="status" aria-live="polite"><span class="dot"></span><span>آماده اجرای آزمایش</span></div>
     <p id="diagnosticError" class="error"></p>
     <div id="diagnosticResult" class="diagnostic-result" aria-live="polite">
@@ -101,7 +101,7 @@ const filterTo=document.getElementById("filterTo");
 const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
 const clearFilterButton=document.getElementById("clearFilter");
-const diagnosticButtons=[...document.querySelectorAll("#runAkeDiagnostic,#runTaDiagnostic")];
+const diagnosticButtons=[...document.querySelectorAll("#runOneDiagnostic,#runTaDiagnostic")];
 const diagnosticStatus=document.getElementById("diagnosticStatus");
 const diagnosticError=document.getElementById("diagnosticError");
 const diagnosticResult=document.getElementById("diagnosticResult");
@@ -204,7 +204,7 @@ async function runDiagnostic(symbol){
     diagnosticButtons.forEach(button=>button.disabled=false);
   }
 }
-document.getElementById("runAkeDiagnostic").addEventListener("click",()=>runDiagnostic("AKE_USDT"));
+document.getElementById("runOneDiagnostic").addEventListener("click",()=>runDiagnostic("ONE_USDT"));
 document.getElementById("runTaDiagnostic").addEventListener("click",()=>runDiagnostic("TA_USDT"));
 
 button.addEventListener("click",async()=>{
