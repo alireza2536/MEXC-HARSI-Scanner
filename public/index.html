@@ -49,8 +49,8 @@
   <section class="panel">
     <div class="ha-filter" aria-label="محدوده نمایش بر اساس مقدار">
       <div class="ha-filter-fields">
-        <div><label for="filterFrom">از مقدار</label><input id="filterFrom" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" placeholder="مثلاً -5"></div>
-        <div><label for="filterTo">تا مقدار</label><input id="filterTo" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" placeholder="مثلاً 10"></div>
+        <div><label for="filterFrom">از مقدار</label><input id="filterFrom" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="4" placeholder="مثلاً -5"></div>
+        <div><label for="filterTo">تا مقدار</label><input id="filterTo" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="20" placeholder="مثلاً 10"></div>
       </div>
       <div class="ha-filter-actions">
         <button id="applyFilter" type="button">اعمال فیلتر</button>
@@ -76,8 +76,9 @@ const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
 const clearFilterButton=document.getElementById("clearFilter");
 let latestResults=[];
-let activeRange=null;
+let activeRange={min:4,max:20};
 const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
+const fmtHa=(value)=>value===null||value===undefined?"—":Number(value).toFixed(1);
 function renderRows(){
   rows.replaceChildren();
   const results=activeRange
@@ -88,7 +89,7 @@ function renderRows(){
     : latestResults;
   for(const item of results){
     const tr=document.createElement("tr");
-    for(const value of [fmt(item.haClose),String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"")]){
+    for(const value of [fmtHa(item.haClose),String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"")]){
       const td=document.createElement("td");td.textContent=value;tr.append(td);
     }
     rows.append(tr);
