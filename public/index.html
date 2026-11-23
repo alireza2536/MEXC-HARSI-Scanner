@@ -58,6 +58,13 @@
       </div>
       <p id="filterMessage" aria-live="polite">دو مقدار دلخواه وارد کنید؛ مثبت و منفی پذیرفته می‌شود.</p>
     </div>
+    <div class="sort-controls" style="display:flex;align-items:center;gap:8px;margin:12px 0">
+      <label for="haSort">مرتب‌سازی مقدار HA:</label>
+      <select id="haSort" aria-label="مرتب‌سازی مقدار HA">
+        <option value="desc" selected>از زیاد به کم</option>
+        <option value="asc">از کم به زیاد</option>
+      </select>
+    </div>
     <div class="table-wrap">
       <table style="min-width:0"><thead><tr><th>مقدار</th><th>نام ارز</th></tr></thead>
       <tbody id="rows"><tr><td colspan="2" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
@@ -75,18 +82,23 @@ const filterTo=document.getElementById("filterTo");
 const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
 const clearFilterButton=document.getElementById("clearFilter");
+const haSort=document.getElementById("haSort");
 let latestResults=[];
 let activeRange={min:4,max:20};
 const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
 const fmtHa=(value)=>value===null||value===undefined?"—":Number(value).toFixed(1);
 function renderRows(){
   rows.replaceChildren();
-  const results=activeRange
+  const filteredResults=activeRange
     ? latestResults.filter(item=>{
         const value=Number(item.haClose);
         return item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)&&value>=activeRange.min&&value<=activeRange.max;
       })
     : latestResults;
+  const results=[...filteredResults].sort((a,b)=>{
+    const difference=Number(a.haClose)-Number(b.haClose);
+    return haSort.value==="asc"?difference:-difference;
+  });
   for(const item of results){
     const tr=document.createElement("tr");
     for(const value of [fmtHa(item.haClose),String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"")]){
@@ -106,6 +118,7 @@ function renderRows(){
     filterMessage.textContent="فیلتر غیرفعال است؛ "+latestResults.length+" ارز نمایش داده می‌شود.";
   }
 }
+haSort.addEventListener("change",renderRows);
 function normalizeNumericInput(value){
   return String(value).trim()
     .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
