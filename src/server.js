@@ -2,7 +2,7 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { runLiveScan, runAkeHistoryDiagnostic } from "./live-scanner.js";
+import { runLiveScan, runOneHistoryDiagnostic } from "./live-scanner.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
@@ -75,7 +75,7 @@ const server = http.createServer(async (request, response) => {
     lastDiagnosticAt = Date.now();
     try {
       const symbol = url.searchParams.get("symbol") || "ONE_USDT";
-      const result = await runAkeHistoryDiagnostic(symbol);
+      const result = await runOneHistoryDiagnostic(symbol);
       return sendJson(response, 200, result);
     } catch (error) {
       console.error(JSON.stringify({ event: "one_harsi_history_diagnostic_failed", error: error.message }));
