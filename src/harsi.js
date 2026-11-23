@@ -1,6 +1,6 @@
 const HARSI_LENGTH = 200;
 const OPEN_SMOOTHING = 1;
-const CALCULATION_VERSION = "jayrogers-harsi-v1-length-200-smoothing-1";
+const CALCULATION_VERSION = "jayrogers-harsi-v2-length-200-smoothing-1-open-rsi";
 
 function rsiValues(values, length) {
   const result = Array(values.length).fill(null);
@@ -65,25 +65,34 @@ export function calculateHarsi(candles) {
   );
   if (ordered.length === 0) return [];
 
-  const closes = ordered.map((candle) => toFiniteNumber(candle.close_price, "close_price", candle.symbol));
+  const opens = ordered.map((candle) => toFiniteNumber(candle.open_price, "open_price", candle.symbol));
   const highs = ordered.map((candle) => toFiniteNumber(candle.high_price, "high_price", candle.symbol));
   const lows = ordered.map((candle) => toFiniteNumber(candle.low_price, "low_price", candle.symbol));
+  const closes = ordered.map((candle) => toFiniteNumber(candle.close_price, "close_price", candle.symbol));
 
-  const closeRsi = rsiValues(closes, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
-  const highRsi = rsiValues(highs, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
-  const lowRsi = rsiValues(lows, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
+  // Pine's f_zrsi() is applied independently to each OHLC price series.
+  const openRsiValues = rsiValues(opens, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
+  const highRsiValues = rsiValues(highs, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
+  const lowRsiValues = rsiValues(lows, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
+  const closeRsiValues = rsiValues(closes, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
 
   const output = [];
   const haOpen = Array(ordered.length).fill(null);
   const haClose = Array(ordered.length).fill(null);
 
   for (let index = 0; index < ordered.length; index += 1) {
-    if (closeRsi[index] === null || highRsi[index] === null || lowRsi[index] === null) continue;
+    if (
+      openRsiValues[index] === null ||
+      highRsiValues[index] === null ||
+      lowRsiValues[index] === null ||
+      closeRsiValues[index] === null
+    ) continue;
 
-    const openRsi = closeRsi[index - 1] ?? closeRsi[index];
-    const highRsiValue = Math.max(highRsi[index], lowRsi[index]);
-    const lowRsiValue = Math.min(highRsi[index], lowRsi[index]);
-    const closeValue = (openRsi + highRsiValue + lowRsiValue + closeRsi[index]) / 4;
+    const openRsi = openRsiValues[index];
+    const highRsiValue = Math.max(highRsiValues[index], lowRsiValues[index]);
+    const lowRsiValue = Math.min(highRsiValues[index], lowRsiValues[index]);
+    const closeRsi = closeRsiValues[index];
+    const closeValue = (openRsi + highRsiValue + lowRsiValue + closeRsi) / 4;
 
     const priorOpenAtSmoothingOffset = index - OPEN_SMOOTHING >= 0
       ? haOpen[index - OPEN_SMOOTHING]
@@ -91,7 +100,7 @@ export function calculateHarsi(candles) {
 
     let openValue;
     if (priorOpenAtSmoothingOffset === null) {
-      openValue = (openRsi + closeRsi[index]) / 2;
+      openValue = (openRsi + closeRsi) / 2;
     } else {
       openValue = (
         (haOpen[index - 1] * OPEN_SMOOTHING) + haClose[index - 1]
@@ -111,7 +120,7 @@ export function calculateHarsi(candles) {
       rsi_open: openRsi,
       rsi_high: highRsiValue,
       rsi_low: lowRsiValue,
-      rsi_close: closeRsi[index],
+      rsi_close: closeRsi,
       ha_open: openValue,
       ha_high: highValue,
       ha_low: lowValue,
