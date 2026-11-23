@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   isStablecoinBaseAsset,
   isTraditionalMarketBaseAsset,
-  isEligibleCryptoBaseAsset
+  isEligibleCryptoBaseAsset,
+  isStockInstrument
 } from "../src/mexc-client.js";
 
 test("identifies common USD and EUR stablecoin base assets", () => {
@@ -36,4 +37,13 @@ test("excludes gold-backed tokens", () => {
     assert.equal(isTraditionalMarketBaseAsset(asset), true, asset);
     assert.equal(isEligibleCryptoBaseAsset(asset), false, asset);
   }
+});
+
+test("excludes stock-linked instruments identified by STOCK in the base asset or symbol", () => {
+  for (const asset of ["AAPLSTOCK", "TSLASTOCK", "STOCK"]) {
+    assert.equal(isStockInstrument(asset), true, asset);
+    assert.equal(isEligibleCryptoBaseAsset(asset), false, asset);
+  }
+  assert.equal(isStockInstrument("BTC"), false);
+  assert.equal(isStockInstrument(""), false);
 });
