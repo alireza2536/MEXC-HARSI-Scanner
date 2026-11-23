@@ -28,7 +28,7 @@ function currentCandleFrom(candles, currentOpen) {
  */
 const DIAGNOSTIC_SYMBOLS = new Set(["AKE_USDT", "TA_USDT"]);
 
-export async function runAkeHistoryDiagnostic(symbol = symbol) {
+export async function runAkeHistoryDiagnostic(symbol = PILOT_SYMBOL) {
   if (!DIAGNOSTIC_SYMBOLS.has(symbol)) throw new Error("این نماد برای آزمایش مجاز نیست.");
   const mexc = new MexcClient();
   const serverNowMs = await mexc.getServerTimeMs();
@@ -48,11 +48,11 @@ export async function runAkeHistoryDiagnostic(symbol = symbol) {
     .sort((a, b) => Date.parse(a.open_time) - Date.parse(b.open_time));
   const uniquePrior = [...new Map(prior.map((candle) => [candle.open_time, candle])).values()];
   if (uniquePrior.length !== 2322) {
-    throw new Error(`AKE diagnostic history is incomplete: expected 2322 prior candles, received ${uniquePrior.length}`);
+    throw new Error(`${symbol} diagnostic history is incomplete: expected 2322 prior candles, received ${uniquePrior.length}`);
   }
 
   const current = currentCandleFrom(currentResponse, currentOpen);
-  if (!current) throw new Error("MEXC did not return the current AKE candle for diagnostic.");
+  if (!current) throw new Error(`MEXC did not return the current ${symbol} candle for diagnostic.`);
 
   const history2000 = [...uniquePrior.slice(-2000), current];
   const history2323 = [...uniquePrior.slice(-2322), current];
@@ -86,7 +86,7 @@ export async function runAkeHistoryDiagnostic(symbol = symbol) {
     },
     completedAt: new Date().toISOString()
   };
-  log("ake_harsi_history_diagnostic_completed", result);
+  log("harsi_history_diagnostic_completed", result);
   return result;
 }
 
