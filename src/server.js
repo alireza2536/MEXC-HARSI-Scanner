@@ -55,7 +55,7 @@ const server = http.createServer(async (request, response) => {
     return sendJson(response, 200, job);
   }
 
-  if (request.method === "POST" && ["/api/diagnostic/ake-history-2323", "/api/diagnostic/history-2323"].includes(url.pathname)) {
+  if (request.method === "POST" && ["/api/diagnostic/one-history-2323", "/api/diagnostic/history-2323"].includes(url.pathname)) {
     const origin = request.headers.origin;
     const host = request.headers.host;
     if (origin) {
@@ -74,11 +74,11 @@ const server = http.createServer(async (request, response) => {
     diagnosticRunning = true;
     lastDiagnosticAt = Date.now();
     try {
-      const symbol = url.searchParams.get("symbol") || "AKE_USDT";
+      const symbol = url.searchParams.get("symbol") || "ONE_USDT";
       const result = await runAkeHistoryDiagnostic(symbol);
       return sendJson(response, 200, result);
     } catch (error) {
-      console.error(JSON.stringify({ event: "ake_harsi_history_diagnostic_failed", error: error.message }));
+      console.error(JSON.stringify({ event: "one_harsi_history_diagnostic_failed", error: error.message }));
       return sendJson(response, 502, { error: error.message });
     } finally {
       diagnosticRunning = false;
@@ -125,7 +125,7 @@ const server = http.createServer(async (request, response) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`MEXC live scanner web server listening on ${HOST}:${PORT}`);
-  // Start the AKE pilot once the HTTP server is listening. This runs after
+  // Start the ONE pilot once the HTTP server is listening. This runs after
   // every process start/restart; the existing in-process candle cache is
   // initialized by the scan and remains unchanged for later refreshes.
   startLiveScan("server_startup");
