@@ -2,6 +2,7 @@ import { config, validateConfig } from "./config.js";
 import { MexcClient } from "./mexc-client.js";
 import { createStore } from "./neon-store.js";
 import { calculateClosedCandleWindow } from "./candle-window.js";
+import { calculateHarsi } from "./harsi.js";
 
 const log = (event, details = {}) => {
   console.log(JSON.stringify({ at: new Date().toISOString(), event, ...details }));
@@ -30,6 +31,7 @@ async function main() {
     log("eligible_contracts_loaded", { count: contracts.length });
 
     let stored = 0;
+    let harsiStored = 0;
     let failed = 0;
 
     for (const contract of contracts) {
@@ -40,16 +42,25 @@ async function main() {
           return closeMs <= serverNowMs && Date.parse(candle.open_time) <= latestClosedOpen * 1000;
         });
 
+        let calculatedHarsiCount = 0;
         if (closedCandles.length) {
           await store.upsertCandles(closedCandles);
           stored += closedCandles.length;
+
+          const harsiRows = calculateHarsi(closedCandles);
+          calculatedHarsiCount = harsiRows.length;
+          if (calculatedHarsiCount) {
+            await store.upsertHarsi(harsiRows);
+            harsiStored += calculatedHarsiCount;
+          }
         }
 
         log("contract_processed", {
           symbol: contract.symbol,
           lastPrice: contract.lastPrice,
           received: candles.length,
-          stored: closedCandles.length
+          stored: closedCandles.length,
+          harsiCalculated: calculatedHarsiCount
         });
       } catch (error) {
         failed += 1;
@@ -63,6 +74,7 @@ async function main() {
     log("scan_completed", {
       eligibleContracts: contracts.length,
       storedCandles: stored,
+      storedHarsiRows: harsiStored,
       failedContracts: failed,
       retentionCutoff: cutoffIso
     });

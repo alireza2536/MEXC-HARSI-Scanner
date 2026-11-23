@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "node --check src/config.js && node --check src/mexc-client.js && node --check src/candle-window.js && node --check src/neon-store.js && node --check src/scanner.js",
+    "build": "node --check src/config.js && node --check src/mexc-client.js && node --check src/candle-window.js && node --check src/harsi.js && node --check src/neon-store.js && node --check src/scanner.js",
     "scan": "node --env-file-if-exists=.env.local --env-file-if-exists=.env src/scanner.js",
     "test": "node --test"
   },
