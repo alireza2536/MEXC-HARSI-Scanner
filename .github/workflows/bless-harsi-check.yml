@@ -1,0 +1,23 @@
+name: BLESS HARSI one-time check
+
+on:
+  push:
+    branches:
+      - feature/harsi-pine-v4
+
+permissions:
+  contents: read
+
+jobs:
+  calculate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out test branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Calculate latest closed BLESS 15m HARSI candle
+        run: node scripts/check-bless-harsi.js

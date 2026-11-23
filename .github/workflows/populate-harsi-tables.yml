@@ -1,0 +1,49 @@
+name: Populate MEXC HARSI tables (one-time)
+# Triggered after the package scan command was corrected for Actions environment variables.
+
+on:
+  push:
+    branches:
+      - feature/harsi-pine-v4
+    paths:
+      - ".github/workflows/populate-harsi-tables.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: populate-mexc-harsi-tables
+  cancel-in-progress: false
+
+jobs:
+  populate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MEXC_BASE_URL: https://contract.mexc.com
+      TIMEFRAME: Min15
+      MAX_PRICE_USDT: "30"
+      HISTORY_DAYS: "3"
+      MEXC_REQUEST_SPACING_MS: "125"
+      UPSERT_BATCH_SIZE: "500"
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate HARSI implementation
+        run: npm test
+      - name: Verify required secrets exist
+        shell: bash
+        run: |
+          test -n "$SUPABASE_URL" || { echo "::error::GitHub Actions secret SUPABASE_URL is missing"; exit 1; }
+          test -n "$SUPABASE_SERVICE_ROLE_KEY" || { echo "::error::GitHub Actions secret SUPABASE_SERVICE_ROLE_KEY is missing"; exit 1; }
+      - name: Populate 3 days of closed 15m candles and HARSI results
+        run: npm run scan

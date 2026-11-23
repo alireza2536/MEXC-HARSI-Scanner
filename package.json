@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "scan": "node --env-file=.env src/scanner.js",
+    "scan": "node src/scanner.js",
     "test": "node --test"
   },
   "dependencies": {
