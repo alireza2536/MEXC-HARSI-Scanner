@@ -31,9 +31,9 @@ test("excludes traditional market instruments and fiat currencies", () => {
   }
 });
 
-test("keeps gold-backed crypto tokens eligible", () => {
+test("excludes gold-backed tokens", () => {
   for (const asset of ["PAXG", "XAUT"]) {
-    assert.equal(isTraditionalMarketBaseAsset(asset), false, asset);
-    assert.equal(isEligibleCryptoBaseAsset(asset), true, asset);
+    assert.equal(isTraditionalMarketBaseAsset(asset), true, asset);
+    assert.equal(isEligibleCryptoBaseAsset(asset), false, asset);
   }
 });
