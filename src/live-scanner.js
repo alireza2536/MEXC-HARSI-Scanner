@@ -2,18 +2,10 @@ import pg from "pg";
 import { config, validateConfig } from "./config.js";
 import { MexcClient } from "./mexc-client.js";
 import { calculateHarsi } from "./harsi.js";
-import { mergeCandleHistory } from "./candle-history-cache.js";
 
 const { Pool } = pg;
 const CANDLE_SECONDS = 15 * 60;
 const HISTORY_CANDLES = 2000;
-const CACHE_LIMIT = HISTORY_CANDLES + 1;
-const PILOT_SYMBOL = "ONE_USDT";
-
-// This cache lives only in the running server process. It is intentionally
-// not written to the database and is rebuilt after a process restart.
-let cachedCandles = [];
-
 const log = (event, details = {}) => {
   console.log(JSON.stringify({ at: new Date().toISOString(), event, ...details }));
 };
