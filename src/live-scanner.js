@@ -28,7 +28,7 @@ function currentCandleFrom(candles, currentOpen) {
  */
 const DIAGNOSTIC_SYMBOLS = new Set(["ONE_USDT", "TA_USDT"]);
 
-export async function runAkeHistoryDiagnostic(symbol = PILOT_SYMBOL) {
+export async function runOneHistoryDiagnostic(symbol = PILOT_SYMBOL) {
   if (!DIAGNOSTIC_SYMBOLS.has(symbol)) throw new Error("این نماد برای آزمایش مجاز نیست.");
   const mexc = new MexcClient();
   const serverNowMs = await mexc.getServerTimeMs();
@@ -90,7 +90,7 @@ export async function runAkeHistoryDiagnostic(symbol = PILOT_SYMBOL) {
   return result;
 }
 
-async function bootstrapAkeHistory(mexc, currentOpen, nowSeconds) {
+async function bootstrapOneHistory(mexc, currentOpen, nowSeconds) {
   const startSeconds = currentOpen - (HISTORY_CANDLES * CANDLE_SECONDS);
   const historicalResponse = await mexc.get15mCandles(
     PILOT_SYMBOL,
@@ -121,9 +121,9 @@ async function bootstrapAkeHistory(mexc, currentOpen, nowSeconds) {
   return mergeCandleHistory(historical, [current], CACHE_LIMIT);
 }
 
-async function getAkeCandles(mexc, currentOpen, nowSeconds) {
+async function getOneCandles(mexc, currentOpen, nowSeconds) {
   if (cachedCandles.length === 0) {
-    const initial = await bootstrapAkeHistory(mexc, currentOpen, nowSeconds);
+    const initial = await bootstrapOneHistory(mexc, currentOpen, nowSeconds);
     cachedCandles = initial;
     log("one_history_initialized", {
       historicalCandles: HISTORY_CANDLES,
@@ -138,7 +138,7 @@ async function getAkeCandles(mexc, currentOpen, nowSeconds) {
   // If the process was inactive long enough that an incremental response
   // could exceed MEXC's 2,000-point limit, rebuild the cache in two requests.
   if (missingBars > HISTORY_CANDLES - 1) {
-    const rebuilt = await bootstrapAkeHistory(mexc, currentOpen, nowSeconds);
+    const rebuilt = await bootstrapOneHistory(mexc, currentOpen, nowSeconds);
     cachedCandles = rebuilt;
     log("one_history_rebuilt", {
       reason: "incremental_gap_exceeded_cache_window",
@@ -186,7 +186,7 @@ export async function runLiveScan() {
       currentCandleOpen: currentOpen
     });
 
-    const candles = await getAkeCandles(mexc, currentOpen, nowSeconds);
+    const candles = await getOneCandles(mexc, currentOpen, nowSeconds);
     const current = currentCandleFrom(candles, currentOpen);
     if (!current) throw new Error("Current ONE candle is missing from the in-memory history.");
 
