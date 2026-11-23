@@ -2,7 +2,7 @@ import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { runLiveScan } from "./live-scanner.js";
+import { runLiveScan, runAkeHistoryDiagnostic } from "./live-scanner.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
@@ -13,6 +13,8 @@ const MIN_START_GAP_MS = 30_000;
 let job = { status: "idle", startedAt: null, finishedAt: null, error: null, summary: null };
 let running = false;
 let lastStartedAt = 0;
+let diagnosticRunning = false;
+let lastDiagnosticAt = 0;
 
 function startLiveScan(source) {
   if (running) return false;
@@ -51,6 +53,35 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && url.pathname === "/api/status") {
     return sendJson(response, 200, job);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/diagnostic/ake-history-2323") {
+    const origin = request.headers.origin;
+    const host = request.headers.host;
+    if (origin) {
+      try {
+        if (new URL(origin).host !== host) {
+          return sendJson(response, 403, { error: "درخواست نامعتبر است." });
+        }
+      } catch {
+        return sendJson(response, 403, { error: "مبدأ درخواست نامعتبر است." });
+      }
+    }
+    if (diagnosticRunning) return sendJson(response, 409, { error: "آزمایش در حال اجراست." });
+    const wait = 30_000 - (Date.now() - lastDiagnosticAt);
+    if (wait > 0) return sendJson(response, 429, { error: "لطفاً کمی صبر کنید.", retryAfterMs: wait });
+
+    diagnosticRunning = true;
+    lastDiagnosticAt = Date.now();
+    try {
+      const result = await runAkeHistoryDiagnostic();
+      return sendJson(response, 200, result);
+    } catch (error) {
+      console.error(JSON.stringify({ event: "ake_harsi_history_diagnostic_failed", error: error.message }));
+      return sendJson(response, 502, { error: error.message });
+    } finally {
+      diagnosticRunning = false;
+    }
   }
 
   if (request.method === "POST" && url.pathname === "/api/refresh") {

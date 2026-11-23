@@ -22,6 +22,71 @@ function currentCandleFrom(candles, currentOpen) {
   return candles.find((candle) => Date.parse(candle.open_time) === currentOpen * 1000);
 }
 
+/**
+ * One-shot, read-only diagnostic for comparing 2,000 vs 2,323 prior AKE candles.
+ * It does not touch the live cache or database.
+ */
+export async function runAkeHistoryDiagnostic() {
+  const mexc = new MexcClient();
+  const serverNowMs = await mexc.getServerTimeMs();
+  const nowSeconds = Math.floor(serverNowMs / 1000);
+  const currentOpen = Math.floor(nowSeconds / CANDLE_SECONDS) * CANDLE_SECONDS;
+  const latestStart = currentOpen - (HISTORY_CANDLES * CANDLE_SECONDS);
+  const extendedStart = currentOpen - (2322 * CANDLE_SECONDS);
+
+  const [latestHistory, extendedHistory, currentResponse] = await Promise.all([
+    mexc.get15mCandles(PILOT_SYMBOL, latestStart, currentOpen - 1),
+    mexc.get15mCandles(PILOT_SYMBOL, extendedStart, latestStart - 1),
+    mexc.get15mCandles(PILOT_SYMBOL, currentOpen, nowSeconds)
+  ]);
+
+  const prior = [...extendedHistory, ...latestHistory]
+    .filter((candle) => Date.parse(candle.open_time) < currentOpen * 1000)
+    .sort((a, b) => Date.parse(a.open_time) - Date.parse(b.open_time));
+  const uniquePrior = [...new Map(prior.map((candle) => [candle.open_time, candle])).values()];
+  if (uniquePrior.length !== 2322) {
+    throw new Error(`AKE diagnostic history is incomplete: expected 2322 prior candles, received ${uniquePrior.length}`);
+  }
+
+  const current = currentCandleFrom(currentResponse, currentOpen);
+  if (!current) throw new Error("MEXC did not return the current AKE candle for diagnostic.");
+
+  const history2000 = [...uniquePrior.slice(-2000), current];
+  const history2323 = [...uniquePrior.slice(-2322), current];
+  const result2000 = calculateHarsi(history2000).find((row) => row.open_time === current.open_time);
+  const result2323 = calculateHarsi(history2323).find((row) => row.open_time === current.open_time);
+  if (!result2000 || !result2323) throw new Error("HARSI diagnostic result is not ready.");
+
+  const result = {
+    symbol: PILOT_SYMBOL,
+    timeframe: "Min15",
+    calculationVersion: result2323.calculation_version,
+    candleOpenTime: current.open_time,
+    candleState: "currently_forming",
+    candleCounts: { comparisonTotal: 2001, extendedTotal: 2323 },
+    comparison: {
+      priorCandles: 2000,
+      totalCandlesIncludingCurrent: history2000.length,
+      haClose: result2000.ha_close
+    },
+    extended: {
+      priorCandles: 2322,
+      totalCandlesIncludingCurrent: history2323.length,
+      haClose: result2323.ha_close
+    },
+    difference: result2323.ha_close - result2000.ha_close,
+    currentCandle: {
+      open: current.open_price,
+      high: current.high_price,
+      low: current.low_price,
+      close: current.close_price
+    },
+    completedAt: new Date().toISOString()
+  };
+  log("ake_harsi_history_diagnostic_completed", result);
+  return result;
+}
+
 async function bootstrapAkeHistory(mexc, currentOpen, nowSeconds) {
   const startSeconds = currentOpen - (HISTORY_CANDLES * CANDLE_SECONDS);
   const historicalResponse = await mexc.get15mCandles(
