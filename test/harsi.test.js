@@ -51,8 +51,8 @@ test("HARSI waits for the 200-period RSI warm-up and returns subsequent candles"
 test("RSI open is calculated from the candle open-price series, not prior close RSI", () => {
   const candles = makeCandles(288);
   const rows = calculateHarsi(candles);
-  const expectedOpenRsi = referenceRsi(candles.map((candle) => candle.open_price), 200) - 50;
-  const expectedCloseRsi = referenceRsi(candles.map((candle) => candle.close_price), 200) - 50;
+  const expectedOpenRsi = referenceRsi(candles.slice(0, 201).map((candle) => candle.open_price), 200) - 50;
+  const expectedCloseRsi = referenceRsi(candles.slice(0, 201).map((candle) => candle.close_price), 200) - 50;
   assert.ok(Math.abs(rows[0].rsi_open - expectedOpenRsi) < 1e-10);
   assert.notEqual(rows[0].rsi_open, expectedCloseRsi);
 });
