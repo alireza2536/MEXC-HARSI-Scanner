@@ -26,7 +26,10 @@ function currentCandleFrom(candles, currentOpen) {
  * One-shot, read-only diagnostic for comparing 2,000 vs 2,323 prior AKE candles.
  * It does not touch the live cache or database.
  */
-export async function runAkeHistoryDiagnostic() {
+const DIAGNOSTIC_SYMBOLS = new Set(["AKE_USDT", "TA_USDT"]);
+
+export async function runAkeHistoryDiagnostic(symbol = symbol) {
+  if (!DIAGNOSTIC_SYMBOLS.has(symbol)) throw new Error("این نماد برای آزمایش مجاز نیست.");
   const mexc = new MexcClient();
   const serverNowMs = await mexc.getServerTimeMs();
   const nowSeconds = Math.floor(serverNowMs / 1000);
@@ -35,9 +38,9 @@ export async function runAkeHistoryDiagnostic() {
   const extendedStart = currentOpen - (2322 * CANDLE_SECONDS);
 
   const [latestHistory, extendedHistory, currentResponse] = await Promise.all([
-    mexc.get15mCandles(PILOT_SYMBOL, latestStart, currentOpen - 1),
-    mexc.get15mCandles(PILOT_SYMBOL, extendedStart, latestStart - 1),
-    mexc.get15mCandles(PILOT_SYMBOL, currentOpen, nowSeconds)
+    mexc.get15mCandles(symbol, latestStart, currentOpen - 1),
+    mexc.get15mCandles(symbol, extendedStart, latestStart - 1),
+    mexc.get15mCandles(symbol, currentOpen, nowSeconds)
   ]);
 
   const prior = [...extendedHistory, ...latestHistory]
@@ -58,7 +61,7 @@ export async function runAkeHistoryDiagnostic() {
   if (!result2000 || !result2323) throw new Error("HARSI diagnostic result is not ready.");
 
   const result = {
-    symbol: PILOT_SYMBOL,
+    symbol: symbol,
     timeframe: "Min15",
     calculationVersion: result2323.calculation_version,
     candleOpenTime: current.open_time,
