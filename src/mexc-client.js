@@ -9,7 +9,7 @@ export const STABLECOIN_BASE_ASSETS = new Set([
   "USDT", "USDC", "BUSD", "TUSD", "FDUSD", "USDP", "DAI", "USDS",
   "USDE", "USDD", "PYUSD", "GUSD", "FRAX", "LUSD", "CRVUSD", "SUSD",
   "USTC", "UST", "EUR", "EURT", "EURC", "AEUR", "EURI", "EUROC",
-  "USD1", "RLUSD", "USD0", "USDQ", "USDX", "USDK", "USDX", "XAUT0"
+  "USD1", "RLUSD", "USD0", "USDQ", "USDX", "USDK"
 ]);
 
 export function isStablecoinBaseAsset(baseCoin) {
