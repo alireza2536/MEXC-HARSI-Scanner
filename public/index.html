@@ -55,7 +55,7 @@ const rows=document.getElementById("rows");
 const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
 function render(job){
   statusEl.className="status "+(job.status||"");
-  const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده و محاسبه HARSI…",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد"};
+  const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد"};
   statusEl.lastElementChild.textContent=labels[job.status]||"وضعیت نامشخص";
   const summary=job.summary;
   button.disabled=job.status==="running";
