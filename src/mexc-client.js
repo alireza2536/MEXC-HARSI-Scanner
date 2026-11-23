@@ -2,6 +2,20 @@ import { config } from "./config.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Base-asset codes for fiat-pegged and other stable-value tokens.
+// This is deliberately separate from the price filter: it only excludes
+// stablecoins and does not impose any additional market/volume criteria.
+export const STABLECOIN_BASE_ASSETS = new Set([
+  "USDT", "USDC", "BUSD", "TUSD", "FDUSD", "USDP", "DAI", "USDS",
+  "USDE", "USDD", "PYUSD", "GUSD", "FRAX", "LUSD", "CRVUSD", "SUSD",
+  "USTC", "UST", "EUR", "EURT", "EURC", "AEUR", "EURI", "EUROC",
+  "USD1", "RLUSD", "USD0", "USDQ", "USDX", "USDK", "USDX", "XAUT0"
+]);
+
+export function isStablecoinBaseAsset(baseCoin) {
+  return STABLECOIN_BASE_ASSETS.has(String(baseCoin || "").trim().toUpperCase());
+}
+
 export class MexcClient {
   #lastRequestAt = 0;
 
@@ -75,7 +89,9 @@ export class MexcClient {
       .filter((contract) => {
         const isUsdt = contract.quoteCoin === "USDT" && contract.settleCoin === "USDT";
         const isEnabled = Number(contract.state) === 0;
-        return isUsdt && isEnabled && tickerBySymbol.has(contract.symbol);
+        const baseCoin = contract.baseCoin || String(contract.symbol || "").replace(/USDT$/i, "");
+        const isNotStablecoin = !isStablecoinBaseAsset(baseCoin);
+        return isUsdt && isEnabled && isNotStablecoin && tickerBySymbol.has(contract.symbol);
       })
       .map((contract) => {
         const ticker = tickerBySymbol.get(contract.symbol);
