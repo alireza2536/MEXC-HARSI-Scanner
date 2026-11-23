@@ -1,6 +1,6 @@
 const HARSI_LENGTH = 200;
 const OPEN_SMOOTHING = 1;
-const CALCULATION_VERSION = "jayrogers-harsi-v2-length-200-smoothing-1-open-rsi";
+const CALCULATION_VERSION = "jayrogers-pine-v4-length-200-smoothing-1";
 
 function rsiValues(values, length) {
   const result = Array(values.length).fill(null);
@@ -65,16 +65,14 @@ export function calculateHarsi(candles) {
   );
   if (ordered.length === 0) return [];
 
-  const opens = ordered.map((candle) => toFiniteNumber(candle.open_price, "open_price", candle.symbol));
   const highs = ordered.map((candle) => toFiniteNumber(candle.high_price, "high_price", candle.symbol));
   const lows = ordered.map((candle) => toFiniteNumber(candle.low_price, "low_price", candle.symbol));
   const closes = ordered.map((candle) => toFiniteNumber(candle.close_price, "close_price", candle.symbol));
 
-  // Pine's f_zrsi() is applied independently to each OHLC price series.
-  const openRsiValues = rsiValues(opens, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
+  // JayRogers Pine v4 derives HARSI open RSI from the previous close RSI.
+  const closeRsiValues = rsiValues(closes, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
   const highRsiValues = rsiValues(highs, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
   const lowRsiValues = rsiValues(lows, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
-  const closeRsiValues = rsiValues(closes, HARSI_LENGTH).map((value) => value === null ? null : value - 50);
 
   const output = [];
   const haOpen = Array(ordered.length).fill(null);
@@ -82,13 +80,15 @@ export function calculateHarsi(candles) {
 
   for (let index = 0; index < ordered.length; index += 1) {
     if (
-      openRsiValues[index] === null ||
       highRsiValues[index] === null ||
       lowRsiValues[index] === null ||
       closeRsiValues[index] === null
     ) continue;
 
-    const openRsi = openRsiValues[index];
+    // Pine: nz(_closeRSI[1], _closeRSI) — use current close RSI on the first valid bar.
+    const openRsi = index > 0 && closeRsiValues[index - 1] !== null
+      ? closeRsiValues[index - 1]
+      : closeRsiValues[index];
     const highRsiValue = Math.max(highRsiValues[index], lowRsiValues[index]);
     const lowRsiValue = Math.min(highRsiValues[index], lowRsiValues[index]);
     const closeRsi = closeRsiValues[index];

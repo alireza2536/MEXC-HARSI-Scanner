@@ -45,18 +45,20 @@ test("HARSI waits for the 200-period RSI warm-up and returns subsequent candles"
   assert.equal(rows.length, 88);
   assert.equal(rows[0].symbol, "TEST_USDT");
   assert.equal(rows[0].scan_match, null);
-  assert.equal(rows[0].calculation_version, "jayrogers-harsi-v2-length-200-smoothing-1-open-rsi");
+  assert.equal(rows[0].calculation_version, "jayrogers-pine-v4-length-200-smoothing-1");
 });
 
-test("RSI open is calculated from the candle open-price series, not prior close RSI", () => {
-  const candles = makeCandles(288);
-  const rows = calculateHarsi(candles);
-  const expectedOpenRsi = referenceRsi(candles.slice(0, 201).map((candle) => candle.open_price), 200) - 50;
-  const expectedCloseRsi = referenceRsi(candles.slice(0, 201).map((candle) => candle.close_price), 200) - 50;
-  assert.ok(Math.abs(rows[0].rsi_open - expectedOpenRsi) < 1e-10);
-  assert.notEqual(rows[0].rsi_open, expectedCloseRsi);
-});
+test("RSI open follows the previous close RSI with Pine nz fallback on the first valid bar", () => {
+  const rows = calculateHarsi(makeCandles(288));
+  assert.equal(rows.length, 88);
 
+  // The first valid RSI bar falls back to its own close RSI via nz(closeRSI[1], closeRSI).
+  assert.ok(Math.abs(rows[0].rsi_open - rows[0].rsi_close) < 1e-10);
+
+  // Every subsequent HARSI open RSI is the preceding candle's close RSI.
+  assert.ok(Math.abs(rows[1].rsi_open - rows[0].rsi_close) < 1e-10);
+  assert.ok(Math.abs(rows[2].rsi_open - rows[1].rsi_close) < 1e-10);
+});
 test("HARSI outputs finite RSI and Heikin Ashi values after warm-up", () => {
   const rows = calculateHarsi(makeCandles(288));
   for (const row of rows) {
