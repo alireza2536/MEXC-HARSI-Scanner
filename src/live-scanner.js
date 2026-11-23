@@ -85,10 +85,6 @@ async function getHistoricalCandles(pool, mexc, symbol, currentOpen) {
       " prior candles, received " + historical.length
     );
   }
-  if (Date.parse(historical[historical.length - 1].open_time) !== expectedLastOpen) {
-    throw new Error("MEXC history does not include the immediately preceding 15m candle.");
-  }
-
   await upsertHistoricalCandles(pool, historical);
   return { candles: historical, cacheHit: false };
 }
@@ -113,7 +109,7 @@ async function saveCurrentCandle(pool, current) {
       "WHERE symbol = $1 AND open_time < (" +
       "SELECT open_time FROM public.mexc_futures_ohlcv_15m " +
       "WHERE symbol = $1 ORDER BY open_time DESC OFFSET $2 LIMIT 1)",
-    [current.symbol, HISTORY_CANDLES + 1]
+    [current.symbol, HISTORY_CANDLES]
   );
 }
 
