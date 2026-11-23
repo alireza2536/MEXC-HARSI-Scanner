@@ -1,13 +1,14 @@
 {
   "name": "mexc-harsi-scanner",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "build": "node --check src/config.js && node --check src/mexc-client.js && node --check src/candle-window.js && node --check src/harsi.js && node --check src/neon-store.js && node --check src/scanner.js",
+    "build": "node --check src/config.js && node --check src/mexc-client.js && node --check src/candle-window.js && node --check src/harsi.js && node --check src/neon-store.js && node --check src/scanner.js && node --check src/live-scanner.js && node --check src/server.js",
+    "start": "node src/server.js",
     "scan": "node --env-file-if-exists=.env.local --env-file-if-exists=.env src/scanner.js",
     "test": "node --test"
   },
