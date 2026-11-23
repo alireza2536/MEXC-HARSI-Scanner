@@ -1,29 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-
-const intervalSeconds = 900;
-
-function closedCandleWindow(serverNowSeconds, historyDays = 3) {
-  const currentOpen = Math.floor(serverNowSeconds / intervalSeconds) * intervalSeconds;
-  const latestClosedOpen = currentOpen - intervalSeconds;
-  const start = latestClosedOpen - historyDays * 86400 + intervalSeconds;
-  return { start, end: latestClosedOpen, latestClosedOpen };
-}
+import { calculateClosedCandleWindow, FIFTEEN_MINUTES_SECONDS } from "../src/candle-window.js";
 
 test("selects only the last fully closed 15m candle", () => {
-  const now = 1_800_000_123;
-  const window = closedCandleWindow(now);
-  assert.equal(window.end + intervalSeconds, Math.floor(now / intervalSeconds) * intervalSeconds);
-  assert.equal(window.end < now, true);
+  const nowMs = 1_800_000_123_000;
+  const window = calculateClosedCandleWindow(nowMs);
+  const currentCandleOpen = Math.floor(Math.floor(nowMs / 1000) / FIFTEEN_MINUTES_SECONDS) * FIFTEEN_MINUTES_SECONDS;
+  assert.equal(window.endSeconds, currentCandleOpen - FIFTEEN_MINUTES_SECONDS);
+  assert.equal(window.endSeconds < nowMs / 1000, true);
 });
 
-test("three-day history window spans 288 candle openings", () => {
-  const window = closedCandleWindow(1_800_000_123);
-  assert.equal((window.end - window.start) / intervalSeconds + 1, 288);
+test("three-day history window contains exactly 288 candle openings", () => {
+  const window = calculateClosedCandleWindow(1_800_000_123_000);
+  assert.equal((window.endSeconds - window.startSeconds) / FIFTEEN_MINUTES_SECONDS + 1, 288);
 });
 
-test("history window is aligned to 15-minute boundaries", () => {
-  const window = closedCandleWindow(1_800_000_123);
-  assert.equal(window.start % intervalSeconds, 0);
-  assert.equal(window.end % intervalSeconds, 0);
+test("window boundaries align to 15-minute intervals", () => {
+  const window = calculateClosedCandleWindow(1_800_000_123_000);
+  assert.equal(window.startSeconds % FIFTEEN_MINUTES_SECONDS, 0);
+  assert.equal(window.endSeconds % FIFTEEN_MINUTES_SECONDS, 0);
+});
+
+test("rejects unsupported retention windows", () => {
+  assert.throws(() => calculateClosedCandleWindow(Date.now(), 7), /exactly three days/);
 });
