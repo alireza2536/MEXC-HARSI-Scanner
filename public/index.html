@@ -37,9 +37,9 @@
     <p id="error" class="error"></p>
   </section>
   <section class="panel">
-    <h2 style="font-size:17px;margin-top:0;text-align:center">آخرین مقادیر HA Close</h2>
+    
     <div class="table-wrap">
-      <table style="min-width:0"><thead><tr><th>نام ارز</th><th>HA Close</th></tr></thead>
+      <table style="min-width:0"><thead><tr><th>مقدار</th><th>نام ارز</th></tr></thead>
       <tbody id="rows"><tr><td colspan="2" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
@@ -65,7 +65,7 @@ function render(job){
     rows.replaceChildren();
     for(const item of summary.results||[]){
       const tr=document.createElement("tr");
-      for(const value of [String(item.symbol||"").replace(/(?:_|-)??USDT$/i,""),fmt(item.haClose)]){
+      for(const value of [fmt(item.haClose),String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"")]){
         const td=document.createElement("td");td.textContent=value;tr.append(td);
       }
       rows.append(tr);
