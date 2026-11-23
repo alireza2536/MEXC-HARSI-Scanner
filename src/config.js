@@ -14,15 +14,14 @@ export const config = {
   historyDays: numberFromEnv("HISTORY_DAYS", 3),
   requestSpacingMs: numberFromEnv("MEXC_REQUEST_SPACING_MS", 125),
   upsertBatchSize: numberFromEnv("UPSERT_BATCH_SIZE", 500),
-  supabaseUrl: process.env.SUPABASE_URL,
-  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
+  databaseUrl: process.env.DATABASE_URL
 };
 
 export function validateConfig() {
   if (config.interval !== "Min15") throw new Error("This project currently supports only Min15.");
   if (config.maxPrice <= 0) throw new Error("MAX_PRICE_USDT must be greater than zero.");
   if (config.historyDays !== 3) throw new Error("HISTORY_DAYS is fixed at 3 for this project.");
-  if (!config.supabaseUrl || !config.supabaseServiceRoleKey) {
-    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.");
+  if (!config.databaseUrl) {
+    throw new Error("DATABASE_URL is required (Neon PostgreSQL connection string).");
   }
 }
