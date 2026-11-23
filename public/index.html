@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>بروزرسانی جدول ارزهای MEXC</title>
+  <style>
+    :root{color-scheme:dark;font-family:Tahoma,Arial,sans-serif;background:#0b1220;color:#e5edf8}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;padding:24px;background:radial-gradient(ellipse at top,#172b47 0,#0b1220 55%)}
+    main{max-width:900px;margin:0 auto}.panel{background:#111c2d;border:1px solid #26364d;border-radius:18px;padding:22px;margin:16px 0;box-shadow:0 12px 35px #0003}
+    h1{font-size:22px;margin:0 0 10px}.muted{color:#9fb0c7;font-size:14px;line-height:1.9}
+    button{width:100%;border:0;border-radius:12px;padding:15px 18px;font-size:16px;font-weight:700;color:#061321;background:#60d5b2;cursor:pointer}
+    button:disabled{opacity:.55;cursor:not-allowed}.status{display:flex;align-items:center;gap:10px;font-weight:700;margin:8px 0}
+    .dot{width:10px;height:10px;border-radius:50%;background:#8493a8}.running .dot{background:#f6bd4b;box-shadow:0 0 0 5px #f6bd4b22}
+    .completed .dot{background:#60d5b2}.failed .dot{background:#ff7777}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+    .stat{background:#0b1422;border-radius:12px;padding:14px}.stat strong{display:block;font-size:22px;margin-bottom:5px}
+    .stat span{font-size:12px;color:#9fb0c7}
+    .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:520px}th,td{text-align:right;padding:12px 10px;border-bottom:1px solid #26364d;font-size:13px}th{color:#9fb0c7}
+    .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere}.foot{font-size:12px;color:#8293aa;line-height:1.9}
+    @media(max-width:540px){body{padding:12px}.panel{padding:16px}.stats{gap:7px}.stat{padding:10px}.stat strong{font-size:18px}h1{font-size:19px}}
+  </style>
+</head>
+<body>
+<main>
+  <section class="panel">
+    <h1>اسکن لحظه‌ای قراردادهای MEXC</h1>
+    <p class="muted">فقط قراردادهای USDT-M با آخرین قیمت کمتر از ۳۰ تتر بررسی می‌شوند. برای هر قرارداد، ۲۰۰ کندل قبلی از MEXC خوانده می‌شود تا مقدار HARSI کندل ۱۵ دقیقه‌ای در حال تشکیل محاسبه شود.</p>
+    <button id="refresh">بروزرسانی جدول ارزها</button>
+    <div id="status" class="status"><span class="dot"></span><span>آماده بروزرسانی</span></div>
+    <p id="message" class="muted" aria-live="polite">برای شروع، دکمه بالا را بزنید.</p>
+    <div class="stats">
+      <div class="stat"><strong id="eligible">—</strong><span>قرارداد واجد شرایط</span></div>
+      <div class="stat"><strong id="updated">—</strong><span>مقادیر بروزرسانی‌شده</span></div>
+      <div class="stat"><strong id="failed">—</strong><span>خطا</span></div>
+    </div>
+    <p id="error" class="error"></p>
+  </section>
+  <section class="panel">
+    <h2 style="font-size:17px;margin-top:0">آخرین مقادیر کندل زنده</h2>
+    <p class="muted">مقدار HA Close مربوط به کندل ۱۵ دقیقه‌ای در حال تشکیل است و تا پایان همان کندل با هر بروزرسانی تغییر می‌کند.</p>
+    <div class="table-wrap">
+      <table><thead><tr><th>قرارداد</th><th>آخرین قیمت</th><th>قیمت کندل</th><th>HA Close</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
+    </div>
+  </section>
+  <p class="foot">داده‌های تاریخی فقط برای محاسبه از MEXC خوانده می‌شوند. در Neon فقط ردیف کندل جاری ذخیره و در هر بروزرسانی بازنویسی می‌شود؛ کندل‌های بسته‌شده و تاریخچه جدید به جدول اضافه نمی‌شوند. اجرای هم‌زمان چند بروزرسانی مجاز نیست.</p>
+</main>
+<script>
+const button=document.getElementById("refresh");
+const statusEl=document.getElementById("status");
+const message=document.getElementById("message");
+const errorEl=document.getElementById("error");
+const rows=document.getElementById("rows");
+const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
+function render(job){
+  statusEl.className="status "+(job.status||"");
+  const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده و محاسبه HARSI…",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد"};
+  statusEl.lastElementChild.textContent=labels[job.status]||"وضعیت نامشخص";
+  const summary=job.summary;
+  button.disabled=job.status==="running";
+  if(summary){
+    document.getElementById("eligible").textContent=fmt(summary.eligibleContracts);
+    document.getElementById("updated").textContent=fmt(summary.updatedContracts);
+    document.getElementById("failed").textContent=fmt(summary.failedContracts);
+    message.textContent="زمان کندل: "+new Date(summary.candleOpenTime).toLocaleString("fa-IR")+" | پایان اجرا: "+new Date(summary.completedAt).toLocaleString("fa-IR");
+    rows.replaceChildren();
+    for(const item of summary.results||[]){
+      const tr=document.createElement("tr");
+      for(const value of [item.symbol,fmt(item.lastPrice),fmt(item.candleClose),fmt(item.haClose)]){
+        const td=document.createElement("td");td.textContent=value;tr.append(td);
+      }
+      rows.append(tr);
+    }
+    if(!summary.results?.length) rows.innerHTML='<tr><td colspan="4">مقداری برای نمایش وجود ندارد.</td></tr>';
+  }
+  errorEl.textContent=job.error||"";
+  if(job.status==="running") message.textContent="این مرحله ممکن است چند دقیقه طول بکشد. صفحه را باز نگه دارید.";
+  if(job.status==="idle"&&!summary) message.textContent="برای شروع، دکمه بالا را بزنید.";
+}
+async function refreshStatus(){
+  try{const response=await fetch("/api/status",{cache:"no-store"});render(await response.json());}
+  catch{message.textContent="ارتباط با سرور برقرار نشد. صفحه را دوباره بارگذاری کنید.";}
+}
+button.addEventListener("click",async()=>{
+  button.disabled=true;errorEl.textContent="";
+  try{
+    const response=await fetch("/api/refresh",{method:"POST"});
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error||"شروع بروزرسانی ناموفق بود.");
+    render(data.job);
+  }catch(error){errorEl.textContent=error.message;button.disabled=false;}
+});
+refreshStatus();
+setInterval(refreshStatus,3000);
+</script>
+</body>
+</html>

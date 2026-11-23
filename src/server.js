@@ -1,0 +1,97 @@
+import http from "node:http";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { runLiveScan } from "./live-scanner.js";
+
+const PORT = Number(process.env.PORT || 3000);
+const HOST = "0.0.0.0";
+const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
+const htmlPath = path.join(publicDir, "index.html");
+const MIN_START_GAP_MS = 30_000;
+
+let job = { status: "idle", startedAt: null, finishedAt: null, error: null, summary: null };
+let running = false;
+let lastStartedAt = 0;
+
+function sendJson(response, status, body) {
+  response.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff"
+  });
+  response.end(JSON.stringify(body));
+}
+
+const server = http.createServer(async (request, response) => {
+  const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
+
+  if (request.method === "GET" && url.pathname === "/health") {
+    return sendJson(response, 200, { ok: true });
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/status") {
+    return sendJson(response, 200, job);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/refresh") {
+    const origin = request.headers.origin;
+    const host = request.headers.host;
+    if (origin) {
+      try {
+        if (new URL(origin).host !== host) {
+          return sendJson(response, 403, { error: "درخواست نامعتبر است." });
+        }
+      } catch {
+        return sendJson(response, 403, { error: "مبدأ درخواست نامعتبر است." });
+      }
+    }
+
+    if (running) return sendJson(response, 409, { error: "بروزرسانی در حال اجراست.", job });
+    const wait = MIN_START_GAP_MS - (Date.now() - lastStartedAt);
+    if (wait > 0) return sendJson(response, 429, { error: "لطفاً کمی صبر کنید و دوباره تلاش کنید.", retryAfterMs: wait });
+
+    running = true;
+    lastStartedAt = Date.now();
+    job = { status: "running", startedAt: new Date().toISOString(), finishedAt: null, error: null, summary: null };
+    sendJson(response, 202, { accepted: true, job });
+
+    runLiveScan()
+      .then((summary) => {
+        job = { ...job, status: "completed", finishedAt: new Date().toISOString(), summary };
+      })
+      .catch((error) => {
+        console.error(JSON.stringify({ event: "live_scan_fatal", error: error.message }));
+        job = { ...job, status: "failed", finishedAt: new Date().toISOString(), error: error.message };
+      })
+      .finally(() => { running = false; });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/") {
+    try {
+      const html = await readFile(htmlPath);
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff"
+      });
+      return response.end(html);
+    } catch {
+      return sendJson(response, 500, { error: "صفحه در دسترس نیست." });
+    }
+  }
+
+  return sendJson(response, 404, { error: "یافت نشد." });
+});
+
+server.listen(PORT, HOST, () => {
+  console.log(`MEXC live scanner web server listening on ${HOST}:${PORT}`);
+});
+
+function shutdown() {
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
