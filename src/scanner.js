@@ -1,6 +1,7 @@
 import { config, validateConfig } from "./config.js";
 import { MexcClient } from "./mexc-client.js";
 import { createStore } from "./supabase-store.js";
+import { calculateClosedCandleWindow } from "./candle-window.js";
 
 const log = (event, details = {}) => {
   console.log(JSON.stringify({ at: new Date().toISOString(), event, ...details }));
@@ -13,11 +14,8 @@ async function main() {
   const store = createStore();
 
   const serverNowMs = await mexc.getServerTimeMs();
-  const serverNowSeconds = Math.floor(serverNowMs / 1000);
-  const currentCandleOpen = Math.floor(serverNowSeconds / config.intervalSeconds) * config.intervalSeconds;
-  const latestClosedOpen = currentCandleOpen - config.intervalSeconds;
-  const startSeconds = latestClosedOpen - (config.historyDays * 24 * 60 * 60) + config.intervalSeconds;
-  const endSeconds = latestClosedOpen;
+  const window = calculateClosedCandleWindow(serverNowMs, config.historyDays);
+  const { startSeconds, endSeconds, latestClosedOpen } = window;
 
   log("scan_started", {
     timeframe: config.interval,
