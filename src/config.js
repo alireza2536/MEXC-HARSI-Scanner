@@ -10,7 +10,7 @@ export const config = {
   mexcBaseUrl: (process.env.MEXC_BASE_URL || "https://contract.mexc.com").replace(/\/$/, ""),
   interval: process.env.TIMEFRAME || "Min15",
   intervalSeconds: 15 * 60,
-  maxPrice: numberFromEnv("MAX_PRICE_USDT", 30),
+  maxPrice: numberFromEnv("MAX_PRICE_USDT", 10),
   historyDays: numberFromEnv("HISTORY_DAYS", 3),
   requestSpacingMs: numberFromEnv("MEXC_REQUEST_SPACING_MS", 125),
   upsertBatchSize: numberFromEnv("UPSERT_BATCH_SIZE", 500),
