@@ -18,6 +18,8 @@
     .stat{background:#0b1422;border-radius:12px;padding:14px}.stat strong{display:block;font-size:22px;margin-bottom:5px}
     .stat span{font-size:12px;color:#9fb0c7}
     .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:520px}th,td{text-align:right;padding:12px 10px;border-bottom:1px solid #26364d;font-size:13px}th{color:#9fb0c7}
+    .ha-sort-toggle{width:32px;height:32px;padding:0;margin-right:6px;border-radius:8px;background:#26364d;color:#e5edf8;font-size:20px;line-height:1;vertical-align:middle}
+    .ha-sort-toggle:hover{background:#354862}
     .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center}
     .ha-filter{margin-bottom:16px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
     .ha-filter-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -58,15 +60,8 @@
       </div>
       <p id="filterMessage" aria-live="polite">دو مقدار دلخواه وارد کنید؛ مثبت و منفی پذیرفته می‌شود.</p>
     </div>
-    <div class="sort-controls" style="display:flex;align-items:center;gap:8px;margin:12px 0">
-      <label for="haSort">مرتب‌سازی مقدار HA:</label>
-      <select id="haSort" aria-label="مرتب‌سازی مقدار HA">
-        <option value="desc" selected>از زیاد به کم</option>
-        <option value="asc">از کم به زیاد</option>
-      </select>
-    </div>
     <div class="table-wrap">
-      <table style="min-width:0"><thead><tr><th>مقدار</th><th>نام ارز</th></tr></thead>
+      <table style="min-width:0"><thead><tr><th>مقدار <button id="haSort" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی صعودی" title="مرتب‌سازی صعودی">↑</button></th><th>نام ارز</th></tr></thead>
       <tbody id="rows"><tr><td colspan="2" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
@@ -83,6 +78,7 @@ const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
 const clearFilterButton=document.getElementById("clearFilter");
 const haSort=document.getElementById("haSort");
+let sortDirection="asc";
 let latestResults=[];
 let activeRange={min:4,max:20};
 const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
@@ -97,7 +93,7 @@ function renderRows(){
     : latestResults;
   const results=[...filteredResults].sort((a,b)=>{
     const difference=Number(a.haClose)-Number(b.haClose);
-    return haSort.value==="asc"?difference:-difference;
+    return sortDirection==="asc"?difference:-difference;
   });
   for(const item of results){
     const tr=document.createElement("tr");
@@ -118,7 +114,14 @@ function renderRows(){
     filterMessage.textContent="فیلتر غیرفعال است؛ "+latestResults.length+" ارز نمایش داده می‌شود.";
   }
 }
-haSort.addEventListener("change",renderRows);
+haSort.addEventListener("click",()=>{
+  sortDirection=sortDirection==="asc"?"desc":"asc";
+  haSort.textContent=sortDirection==="asc"?"↑":"↓";
+  const directionLabel=sortDirection==="asc"?"صعودی":"نزولی";
+  haSort.setAttribute("aria-label","مرتب‌سازی "+directionLabel);
+  haSort.title="مرتب‌سازی "+directionLabel;
+  renderRows();
+});
 function normalizeNumericInput(value){
   return String(value).trim()
     .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
