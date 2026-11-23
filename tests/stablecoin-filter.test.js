@@ -1,0 +1,21 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { isStablecoinBaseAsset } from "../src/mexc-client.js";
+
+test("identifies common USD and EUR stablecoin base assets", () => {
+  for (const asset of ["USDT", "USDC", "FDUSD", "DAI", "USDE", "PYUSD", "EURC"]) {
+    assert.equal(isStablecoinBaseAsset(asset), true, asset);
+  }
+});
+
+test("does not classify ordinary crypto assets as stablecoins", () => {
+  for (const asset of ["BTC", "ETH", "SOL", "XRP", "DOGE", "MEXC"]) {
+    assert.equal(isStablecoinBaseAsset(asset), false, asset);
+  }
+});
+
+test("normalizes stablecoin codes and rejects empty values", () => {
+  assert.equal(isStablecoinBaseAsset(" usdc "), true);
+  assert.equal(isStablecoinBaseAsset(""), false);
+  assert.equal(isStablecoinBaseAsset(null), false);
+});
