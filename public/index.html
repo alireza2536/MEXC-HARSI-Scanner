@@ -19,6 +19,14 @@
     .stat span{font-size:12px;color:#9fb0c7}
     .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:520px}th,td{text-align:right;padding:12px 10px;border-bottom:1px solid #26364d;font-size:13px}th{color:#9fb0c7}
     .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center}
+    .diagnostic-result{margin-top:16px;padding:14px;background:#0b1422;border:1px solid #354862;border-radius:12px;display:none}
+    .diagnostic-result h2{font-size:16px;text-align:center;margin:0 0 12px}
+    .diagnostic-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .diagnostic-value{background:#172438;border-radius:10px;padding:12px;text-align:center;min-width:0}
+    .diagnostic-value strong{display:block;font-size:18px;direction:ltr;overflow-wrap:anywhere;margin-bottom:5px}
+    .diagnostic-value span{font-size:11px;color:#9fb0c7}
+    .diagnostic-meta{font-size:12px;color:#9fb0c7;text-align:center;line-height:1.8;margin:12px 0 0}
+    @media(max-width:540px){.diagnostic-grid{grid-template-columns:1fr}.diagnostic-value{padding:10px}}
     .ha-filter{margin-bottom:16px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
     .ha-filter-title{font-size:15px;font-weight:700;text-align:center;margin:0 0 12px}
     .ha-filter-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -46,6 +54,22 @@
       <div class="stat"><strong id="failed">—</strong><span>خطا</span></div>
     </div>
     <p id="error" class="error"></p>
+  </section>
+  <section class="panel">
+    <h1>آزمایش مقایسه تاریخچه HARSI</h1>
+    <p class="muted" style="text-align:center">فقط AKE در تایم‌فریم ۱۵ دقیقه؛ مقایسه تاریخچه ۲۰۰۱ و ۲۳۲۳ کندلی، بدون تغییر در اسکن اصلی.</p>
+    <button id="runDiagnostic" type="button">اجرای آزمایش ۲۳۲۳ کندلی</button>
+    <div id="diagnosticStatus" class="status" aria-live="polite"><span class="dot"></span><span>آماده اجرای آزمایش</span></div>
+    <p id="diagnosticError" class="error"></p>
+    <div id="diagnosticResult" class="diagnostic-result" aria-live="polite">
+      <h2>نتیجه مقایسه AKE / 15m</h2>
+      <div class="diagnostic-grid">
+        <div class="diagnostic-value"><strong id="diagnostic2001">—</strong><span>HA Close با ۲۰۰۱ کندل</span></div>
+        <div class="diagnostic-value"><strong id="diagnostic2323">—</strong><span>HA Close با ۲۳۲۳ کندل</span></div>
+        <div class="diagnostic-value"><strong id="diagnosticDifference">—</strong><span>اختلاف (۲۳۲۳ منهای ۲۰۰۱)</span></div>
+      </div>
+      <p id="diagnosticMeta" class="diagnostic-meta"></p>
+    </div>
   </section>
   <section class="panel">
     <div class="ha-filter" aria-label="فیلتر بازه مقدار HA Close">
@@ -77,6 +101,11 @@ const filterTo=document.getElementById("filterTo");
 const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
 const clearFilterButton=document.getElementById("clearFilter");
+const diagnosticButton=document.getElementById("runDiagnostic");
+const diagnosticStatus=document.getElementById("diagnosticStatus");
+const diagnosticError=document.getElementById("diagnosticError");
+const diagnosticResult=document.getElementById("diagnosticResult");
+const diagnosticFmt=(value)=>Number(value).toLocaleString("en-US",{maximumFractionDigits:10});
 let latestResults=[];
 let activeRange=null;
 const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
@@ -147,6 +176,33 @@ async function refreshStatus(){
   try{const response=await fetch("/api/status",{cache:"no-store"});render(await response.json());}
   catch{message.textContent="ارتباط با سرور برقرار نشد. صفحه را دوباره بارگذاری کنید.";}
 }
+diagnosticButton.addEventListener("click",async()=>{
+  diagnosticButton.disabled=true;
+  diagnosticError.textContent="";
+  diagnosticResult.style.display="none";
+  diagnosticStatus.className="status running";
+  diagnosticStatus.lastElementChild.textContent="در حال دریافت تاریخچه و محاسبه...";
+  try{
+    const response=await fetch("/api/diagnostic/ake-history-2323",{method:"POST",headers:{"accept":"application/json"}});
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error||"اجرای آزمایش ناموفق بود.");
+    document.getElementById("diagnostic2001").textContent=diagnosticFmt(data.comparison.haClose);
+    document.getElementById("diagnostic2323").textContent=diagnosticFmt(data.extended.haClose);
+    document.getElementById("diagnosticDifference").textContent=diagnosticFmt(data.difference);
+    document.getElementById("diagnosticMeta").textContent=
+      "نماد: "+data.symbol+" | تایم‌فریم: ۱۵ دقیقه | کندل جاری: "+new Date(data.candleOpenTime).toLocaleString("fa-IR")+
+      " | وضعیت کندل: در حال تشکیل | زمان محاسبه: "+new Date(data.completedAt).toLocaleString("fa-IR");
+    diagnosticResult.style.display="block";
+    diagnosticStatus.className="status completed";
+    diagnosticStatus.lastElementChild.textContent="آزمایش با موفقیت انجام شد";
+  }catch(error){
+    diagnosticStatus.className="status failed";
+    diagnosticStatus.lastElementChild.textContent="اجرای آزمایش ناموفق بود";
+    diagnosticError.textContent=error.message;
+  }finally{
+    diagnosticButton.disabled=false;
+  }
+});
 button.addEventListener("click",async()=>{
   button.disabled=true;errorEl.textContent="";
   try{
