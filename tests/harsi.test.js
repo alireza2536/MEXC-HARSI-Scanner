@@ -60,3 +60,23 @@ test("HA_Close threshold is strictly greater than 5.5", () => {
   assert.equal(result.ha_close, 50);
   assert.equal(result.scan_match, false);
 });
+
+test("Open Smoothing 1 follows the prior HA open/close average", () => {
+  const candles = Array.from({ length: 240 }, (_, i) => {
+    const close = 100 + (Math.sin(i / 5) * 8) + (i * 0.03);
+    return {
+      symbol: "TEST_USDT",
+      open_time: new Date(i * 900000).toISOString(),
+      close_time: new Date((i + 1) * 900000).toISOString(),
+      high_price: close + 2 + (Math.cos(i / 7) * 0.5),
+      low_price: close - 2 - (Math.sin(i / 9) * 0.5),
+      close_price: close
+    };
+  });
+  const results = calculateHarsi(candles);
+  for (let i = 202; i < results.length; i += 1) {
+    assert.ok(Math.abs(results[i].ha_open - ((results[i - 1].ha_open + results[i - 1].ha_close) / 2)) < 1e-10);
+    assert.ok(results[i].ha_high >= Math.max(results[i].ha_open, results[i].ha_close));
+    assert.ok(results[i].ha_low <= Math.min(results[i].ha_open, results[i].ha_close));
+  }
+});
