@@ -42,14 +42,16 @@ async function main() {
           return closeMs <= serverNowMs && Date.parse(candle.open_time) <= latestClosedOpen * 1000;
         });
 
+        let calculatedHarsiCount = 0;
         if (closedCandles.length) {
           await store.upsertCandles(closedCandles);
           stored += closedCandles.length;
 
           const harsiRows = calculateHarsi(closedCandles);
-          if (harsiRows.length) {
+          calculatedHarsiCount = harsiRows.length;
+          if (calculatedHarsiCount) {
             await store.upsertHarsi(harsiRows);
-            harsiStored += harsiRows.length;
+            harsiStored += calculatedHarsiCount;
           }
         }
 
@@ -58,7 +60,7 @@ async function main() {
           lastPrice: contract.lastPrice,
           received: candles.length,
           stored: closedCandles.length,
-          harsiCalculated: closedCandles.length ? calculateHarsi(closedCandles).length : 0
+          harsiCalculated: calculatedHarsiCount
         });
       } catch (error) {
         failed += 1;
