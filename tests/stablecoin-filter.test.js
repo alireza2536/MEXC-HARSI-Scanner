@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isStablecoinBaseAsset } from "../src/mexc-client.js";
+import {
+  isStablecoinBaseAsset,
+  isTraditionalMarketBaseAsset,
+  isEligibleCryptoBaseAsset
+} from "../src/mexc-client.js";
 
 test("identifies common USD and EUR stablecoin base assets", () => {
   for (const asset of ["USDT", "USDC", "FDUSD", "DAI", "USDE", "PYUSD", "EURC"]) {
@@ -18,4 +22,18 @@ test("normalizes stablecoin codes and rejects empty values", () => {
   assert.equal(isStablecoinBaseAsset(" usdc "), true);
   assert.equal(isStablecoinBaseAsset(""), false);
   assert.equal(isStablecoinBaseAsset(null), false);
+});
+
+test("excludes traditional market instruments and fiat currencies", () => {
+  for (const asset of ["XAU", "XAG", "OIL", "WTI", "BRENT", "NATGAS", "DXY", "SPX", "NAS100", "EUR", "GBP", "JPY"]) {
+    assert.equal(isTraditionalMarketBaseAsset(asset), true, asset);
+    assert.equal(isEligibleCryptoBaseAsset(asset), false, asset);
+  }
+});
+
+test("keeps gold-backed crypto tokens eligible", () => {
+  for (const asset of ["PAXG", "XAUT"]) {
+    assert.equal(isTraditionalMarketBaseAsset(asset), false, asset);
+    assert.equal(isEligibleCryptoBaseAsset(asset), true, asset);
+  }
 });
