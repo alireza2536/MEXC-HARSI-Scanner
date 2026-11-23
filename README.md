@@ -19,13 +19,11 @@
 
 نیازمند Node.js 22 یا بالاتر است.
 
-    bash
     npm install
     cp .env.example .env
     # مقادیر Supabase را در .env تنظیم کنید
     npm test
     npm run scan
-
 
 ## روند اسکن
 
