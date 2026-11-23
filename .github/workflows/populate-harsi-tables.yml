@@ -1,4 +1,5 @@
 name: Populate MEXC HARSI tables (one-time)
+# Triggered after the package scan command was corrected for Actions environment variables.
 
 on:
   push:
