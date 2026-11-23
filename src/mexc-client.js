@@ -39,8 +39,16 @@ export function isTraditionalMarketBaseAsset(baseCoin) {
   return TRADITIONAL_MARKET_BASE_ASSETS.has(String(baseCoin || "").trim().toUpperCase());
 }
 
+// MEXC stock-linked contracts can include STOCK in the base asset or symbol.
+// Exclude them independently of the existing crypto, stablecoin, and price filters.
+export function isStockInstrument(value) {
+  return String(value || "").trim().toUpperCase().includes("STOCK");
+}
+
 export function isEligibleCryptoBaseAsset(baseCoin) {
-  return !isStablecoinBaseAsset(baseCoin) && !isTraditionalMarketBaseAsset(baseCoin);
+  return !isStablecoinBaseAsset(baseCoin)
+    && !isTraditionalMarketBaseAsset(baseCoin)
+    && !isStockInstrument(baseCoin);
 }
 
 export class MexcClient {
@@ -118,7 +126,8 @@ export class MexcClient {
         const isEnabled = Number(contract.state) === 0;
         const baseCoin = contract.baseCoin || String(contract.symbol || "").replace(/USDT$/i, "");
         const isEligibleCrypto = isEligibleCryptoBaseAsset(baseCoin);
-        return isUsdt && isEnabled && isEligibleCrypto && tickerBySymbol.has(contract.symbol);
+        const isNotStockContract = !isStockInstrument(contract.symbol);
+        return isUsdt && isEnabled && isEligibleCrypto && isNotStockContract && tickerBySymbol.has(contract.symbol);
       })
       .map((contract) => {
         const ticker = tickerBySymbol.get(contract.symbol);
