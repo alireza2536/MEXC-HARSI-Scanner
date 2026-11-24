@@ -125,6 +125,12 @@ export async function runLiveScan() {
   });
 
   try {
+    // Keep only the most recent seven days of HARSI result history.
+    await pool.query(
+      "DELETE FROM public.mexc_harsi_results_15m " +
+        "WHERE close_time < now() - interval '7 days'"
+    );
+
     const serverNowMs = await mexc.getServerTimeMs();
     const nowSeconds = Math.floor(serverNowMs / 1000);
     const currentOpen = Math.floor(nowSeconds / CANDLE_SECONDS) * CANDLE_SECONDS;
