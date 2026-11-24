@@ -177,6 +177,7 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     },
     async refreshNow() {
       if (running) return getStatus();
+      await BackgroundScan.requestNotificationPermission();
       await BackgroundScan.start();
       try {
         await runScan();
