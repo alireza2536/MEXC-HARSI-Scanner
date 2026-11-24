@@ -149,61 +149,74 @@ export async function runLiveScan() {
     let historyBackfills = 0;
     const results = [];
 
-    for (const contract of contracts) {
-      try {
-        const history = await getHistoricalCandles(pool, mexc, contract.symbol, currentOpen);
-        if (history.cacheHit) historyCacheHits += 1;
-        else historyBackfills += 1;
+    let nextContractIndex = 0;
+    async function processContracts() {
+      while (true) {
+        const index = nextContractIndex;
+        nextContractIndex += 1;
+        if (index >= contracts.length) return;
+        const contract = contracts[index];
 
-        const currentResponse = await mexc.get15mCandles(
-          contract.symbol,
-          currentOpen,
-          nowSeconds
-        );
-        const current = currentCandleFrom(currentResponse, currentOpen);
-        if (!current) {
-          throw new Error("MEXC did not return the currently forming 15m candle.");
+        try {
+          const history = await getHistoricalCandles(pool, mexc, contract.symbol, currentOpen);
+          if (history.cacheHit) historyCacheHits += 1;
+          else historyBackfills += 1;
+
+          const currentResponse = await mexc.get15mCandles(
+            contract.symbol,
+            currentOpen,
+            nowSeconds
+          );
+          const current = currentCandleFrom(currentResponse, currentOpen);
+          if (!current) {
+            throw new Error("MEXC did not return the currently forming 15m candle.");
+          }
+
+          const candles = [...history.candles, current];
+          const currentHarsi = calculateHarsi(candles)
+            .find((row) => row.open_time === current.open_time);
+          if (!currentHarsi) {
+            throw new Error("HARSI value is not ready for the current candle.");
+          }
+
+          await saveCurrentCandle(pool, current);
+
+          await pool.query(
+            "INSERT INTO public.mexc_harsi_results_15m " +
+              "(symbol, open_time, close_time, rsi_open, rsi_high, rsi_low, rsi_close, " +
+              "ha_open, ha_high, ha_low, ha_close, scan_match, calculation_version) " +
+              "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,$12) " +
+              "ON CONFLICT (symbol, open_time) DO UPDATE SET " +
+              "close_time=EXCLUDED.close_time, rsi_open=EXCLUDED.rsi_open, " +
+              "rsi_high=EXCLUDED.rsi_high, rsi_low=EXCLUDED.rsi_low, " +
+              "rsi_close=EXCLUDED.rsi_close, ha_open=EXCLUDED.ha_open, " +
+              "ha_high=EXCLUDED.ha_high, ha_low=EXCLUDED.ha_low, ha_close=EXCLUDED.ha_close, " +
+              "scan_match=NULL, calculation_version=EXCLUDED.calculation_version, updated_at=now()",
+            [currentHarsi.symbol, currentHarsi.open_time, currentHarsi.close_time,
+              currentHarsi.rsi_open, currentHarsi.rsi_high, currentHarsi.rsi_low, currentHarsi.rsi_close,
+              currentHarsi.ha_open, currentHarsi.ha_high, currentHarsi.ha_low, currentHarsi.ha_close,
+              currentHarsi.calculation_version]
+          );
+
+          updatedContracts += 1;
+          results.push({
+            symbol: contract.symbol,
+            lastPrice: contract.lastPrice,
+            candleClose: current.close_price,
+            haClose: currentHarsi.ha_close,
+            candleOpenTime: current.open_time
+          });
+        } catch (error) {
+          failedContracts += 1;
+          log("live_contract_failed", { symbol: contract.symbol, error: error.message });
         }
-
-        const candles = [...history.candles, current];
-        const currentHarsi = calculateHarsi(candles)
-          .find((row) => row.open_time === current.open_time);
-        if (!currentHarsi) {
-          throw new Error("HARSI value is not ready for the current candle.");
-        }
-
-        await saveCurrentCandle(pool, current);
-
-        await pool.query(
-          "INSERT INTO public.mexc_harsi_results_15m " +
-            "(symbol, open_time, close_time, rsi_open, rsi_high, rsi_low, rsi_close, " +
-            "ha_open, ha_high, ha_low, ha_close, scan_match, calculation_version) " +
-            "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,$12) " +
-            "ON CONFLICT (symbol, open_time) DO UPDATE SET " +
-            "close_time=EXCLUDED.close_time, rsi_open=EXCLUDED.rsi_open, " +
-            "rsi_high=EXCLUDED.rsi_high, rsi_low=EXCLUDED.rsi_low, " +
-            "rsi_close=EXCLUDED.rsi_close, ha_open=EXCLUDED.ha_open, " +
-            "ha_high=EXCLUDED.ha_high, ha_low=EXCLUDED.ha_low, ha_close=EXCLUDED.ha_close, " +
-            "scan_match=NULL, calculation_version=EXCLUDED.calculation_version, updated_at=now()",
-          [currentHarsi.symbol, currentHarsi.open_time, currentHarsi.close_time,
-            currentHarsi.rsi_open, currentHarsi.rsi_high, currentHarsi.rsi_low, currentHarsi.rsi_close,
-            currentHarsi.ha_open, currentHarsi.ha_high, currentHarsi.ha_low, currentHarsi.ha_close,
-            currentHarsi.calculation_version]
-        );
-
-        updatedContracts += 1;
-        results.push({
-          symbol: contract.symbol,
-          lastPrice: contract.lastPrice,
-          candleClose: current.close_price,
-          haClose: currentHarsi.ha_close,
-          candleOpenTime: current.open_time
-        });
-      } catch (error) {
-        failedContracts += 1;
-        log("live_contract_failed", { symbol: contract.symbol, error: error.message });
       }
     }
+
+    // A small fixed worker pool overlaps network/database latency without
+    // creating an unbounded number of requests or database operations.
+    const workerCount = Math.min(5, contracts.length);
+    await Promise.all(Array.from({ length: workerCount }, () => processContracts()));
 
     const summary = {
       eligibleContracts: contracts.length,
