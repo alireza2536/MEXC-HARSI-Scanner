@@ -49,7 +49,7 @@ async function getHistory(store, mexc, symbol, currentOpen) {
  * Foreground-only local scanner. The caller owns app lifecycle and must call
  * this function only while the Android app is active.
  */
-export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress } = {}) {
+export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal } = {}) {
   if (!mexc || !store) throw new TypeError("MEXC client and local store are required.");
   if (!Number.isFinite(maxPrice) || maxPrice <= 0) {
     throw new TypeError("The current scanner maxPrice setting must be provided.");
@@ -60,8 +60,13 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
     throw new TypeError("The MEXC client does not implement the scanner interface.");
   }
 
+  const throwIfAborted = () => {
+    if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+  };
+  throwIfAborted();
   await store.initialize();
   await store.pruneExpiredHarsi();
+  throwIfAborted();
 
   const serverNowMs = Number.isFinite(nowMs) ? nowMs : await mexc.getServerTimeMs();
   const nowSeconds = Math.floor(serverNowMs / 1000);
@@ -85,6 +90,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
 
   async function worker() {
     while (true) {
+      if (signal?.aborted) return;
       const index = nextIndex++;
       if (index >= contracts.length) return;
       const contract = contracts[index];
@@ -107,6 +113,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
 
         pending.push({ contract, current, currentHarsi });
       } catch (error) {
+        if (signal?.aborted || error.name === "AbortError") return;
         failedContracts += 1;
         log("local_contract_failed", { symbol: contract.symbol, error: error.message });
       }
@@ -121,8 +128,10 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   await Promise.all(
     Array.from({ length: Math.min(5, contracts.length) }, () => worker())
   );
+  throwIfAborted();
 
   for (let offset = 0; offset < pending.length; offset += PERSISTENCE_BATCH_SIZE) {
+    throwIfAborted();
     const batch = pending.slice(offset, offset + PERSISTENCE_BATCH_SIZE);
     try {
       await store.persistCurrentBatch(batch);
