@@ -11,12 +11,11 @@
     main{max-width:900px;margin:0 auto}.panel{background:#111c2d;border:1px solid #26364d;border-radius:18px;padding:22px;margin:16px 0;box-shadow:0 12px 35px #0003}
     h1{font-size:22px;margin:0 0 10px;text-align:center}.muted{color:#9fb0c7;font-size:14px;line-height:1.9}
     button{width:100%;border:0;border-radius:12px;padding:15px 18px;font-size:16px;font-weight:700;color:#061321;background:#60d5b2;cursor:pointer}
-    button:disabled{opacity:.55;cursor:not-allowed}.status{display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;margin:14px 0;text-align:center}
-    .dot{width:10px;height:10px;border-radius:50%;background:#8493a8}.running .dot{background:#f6bd4b;box-shadow:0 0 0 5px #f6bd4b22}
-    .completed .dot{background:#60d5b2}.failed .dot{background:#ff7777}
-    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
-    .stat{background:#0b1422;border-radius:12px;padding:14px}.stat strong{display:block;font-size:22px;margin-bottom:5px}
-    .stat span{font-size:12px;color:#9fb0c7}
+    button:disabled{opacity:.55;cursor:not-allowed}.progress-track{height:9px;margin:18px 0 9px;background:#26364d;border-radius:999px;overflow:hidden}
+    .progress-fill{height:100%;width:0;background:#16a36a;border-radius:999px;transition:width .25s ease}
+    .progress-details{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px}
+    #message{margin:0;color:#e5edf8;text-align:right}
+    #errorCount{color:#ff9999;white-space:nowrap;font-weight:700}
     .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:520px}th,td{text-align:right;padding:12px 10px;border-bottom:1px solid #26364d;font-size:13px}th{color:#9fb0c7}
     .ha-sort-toggle{width:32px;height:32px;padding:0;margin-right:6px;border-radius:8px;background:#26364d;color:#e5edf8;font-size:20px;line-height:1;vertical-align:middle}
     .ha-sort-toggle:hover{background:#354862}
@@ -34,7 +33,7 @@
     .ha-topbar{display:flex;align-items:center;justify-content:center;position:relative;min-height:42px;margin-bottom:10px}
     .ha-topbar h1{margin:0}
     .ha-menu button{margin:4px 0;padding:12px;font-size:14px}
-    @media(max-width:540px){body{padding:12px}.panel{padding:16px}.stats{gap:7px}.stat{padding:10px}.stat strong{font-size:18px}h1{font-size:19px}}
+    @media(max-width:540px){body{padding:12px}.panel{padding:16px}h1{font-size:19px}.progress-details{font-size:12px}}
   </style>
 </head>
 <body>
@@ -45,12 +44,12 @@
       </div>
     </div>
     <button id="refresh">بروزرسانی</button>
-    <div id="status" class="status"><span class="dot"></span><span>آماده بروزرسانی</span></div>
-    <p id="message" class="muted" aria-live="polite" style="text-align:center">برای شروع اسکن، دکمه بروزرسانی را بزنید.</p>
-    <div class="stats">
-      <div class="stat"><strong id="eligible">—</strong><span>ارز</span></div>
-      <div class="stat"><strong id="updated">—</strong><span>بروز شده</span></div>
-      <div class="stat"><strong id="failed">—</strong><span>خطا</span></div>
+    <div class="progress-track" role="progressbar" aria-label="میزان پردازش" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div id="progressFill" class="progress-fill"></div>
+    </div>
+    <div class="progress-details" aria-live="polite">
+      <p id="message">پردازش: — از —</p>
+      <span id="errorCount">خطا: —</span>
     </div>
     <p id="error" class="error"></p>
   </section>
@@ -74,8 +73,10 @@
 </main>
 <script>
 const button=document.getElementById("refresh");
-const statusEl=document.getElementById("status");
 const message=document.getElementById("message");
+const progressTrack=document.querySelector(".progress-track");
+const progressFill=document.getElementById("progressFill");
+const errorCount=document.getElementById("errorCount");
 const errorEl=document.getElementById("error");
 const rows=document.getElementById("rows");
 const filterFrom=document.getElementById("filterFrom");
@@ -155,38 +156,35 @@ clearFilterButton.addEventListener("click",()=>{
   renderRows();
 });
 function render(job){
-  statusEl.className="status "+(job.status||"");
-  const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد",paused:"اسکن متوقف شد"};
-  statusEl.lastElementChild.textContent=labels[job.status]||"وضعیت نامشخص";
   const summary=job.summary;
   button.disabled=false;
   button.textContent=job.status==="running"?"لغو بروزرسانی":"بروزرسانی";
   button.setAttribute("aria-label",button.textContent);
+  let processed=0,total=0,failed=0;
   if(job.progress){
     latestProgress=job.progress;
-    document.getElementById("eligible").textContent=fmt(job.progress.total);
-    document.getElementById("updated").textContent=fmt(job.progress.updated);
-    document.getElementById("failed").textContent=fmt(job.progress.failed);
-    message.textContent="پردازش: "+fmt(job.progress.processed)+" از "+fmt(job.progress.total)+
-      " | باقی‌مانده: "+fmt(job.progress.remaining);
+    processed=Number(job.progress.processed)||0;
+    total=Number(job.progress.total)||0;
+    failed=Number(job.progress.failed)||0;
     if(Array.isArray(job.progress.results)){
       latestResults=job.progress.results;
       renderRows();
     }
-  }
-  if(summary&&!job.progress){
-    document.getElementById("eligible").textContent=fmt(summary.eligibleContracts);
-    document.getElementById("updated").textContent=fmt(summary.updatedContracts);
-    document.getElementById("failed").textContent=fmt(summary.failedContracts);
-    message.textContent="آخرین بروزرسانی: "+new Date(summary.completedAt).toLocaleString("fa-IR");
+  }else if(summary){
+    processed=Number(summary.processedContracts);
+    if(!Number.isFinite(processed)) processed=(Number(summary.updatedContracts)||0)+(Number(summary.failedContracts)||0);
+    total=Number(summary.eligibleContracts)||0;
+    failed=Number(summary.failedContracts)||0;
     latestResults=Array.isArray(summary.results)?summary.results:[];
     latestProgress=null;
     renderRows();
   }
+  message.textContent="پردازش: "+Number(processed).toLocaleString("fa-IR")+" از "+Number(total).toLocaleString("fa-IR");
+  errorCount.textContent="خطا: "+Number(failed).toLocaleString("fa-IR");
+  const percent=total>0?Math.max(0,Math.min(100,processed/total*100)):0;
+  progressFill.style.width=percent+"%";
+  progressTrack.setAttribute("aria-valuenow",String(Math.round(percent)));
   errorEl.textContent=job.error||"";
-  if(job.status==="running"&&!job.progress) message.textContent="اسکن پس از زدن دکمه بروزرسانی ادامه می‌یابد؛ حتی اگر از برنامه خارج شوید یا صفحه گوشی خاموش شود.";
-  if(job.status==="paused") message.textContent="اسکن متوقف شد. برای شروع دوباره، دکمه بروزرسانی را بزنید.";
-  if(job.status==="idle"&&!summary) message.textContent="برای شروع اسکن، دکمه بروزرسانی را بزنید.";
 }
 window.localHarsiRender=render;
 const nativeApp=Boolean(window.Capacitor?.isNativePlatform?.());
