@@ -18,12 +18,12 @@ function findFile(directory, name) {
 const activityPath = findFile(javaRoot, "MainActivity.java");
 if (!activityPath) throw new Error("Generated MainActivity.java was not found.");
 const packageDir = path.dirname(activityPath);
-for (const name of ["BackgroundScanPlugin.java", "HarsiScanService.java", "HarsiBackupPickerPlugin.java"]) {
+for (const name of ["BackgroundScanPlugin.java", "HarsiScanService.java"]) {
   fs.copyFileSync(path.resolve("android-native", name), path.join(packageDir, name));
 }
 
 let activity = fs.readFileSync(activityPath, "utf8");
-if (!activity.includes("BackgroundScanPlugin.class") || !activity.includes("HarsiBackupPickerPlugin.class")) {
+if (!activity.includes("BackgroundScanPlugin.class")) {
   if (!activity.includes("import android.os.Bundle;")) {
     activity = activity.replace(
       /import com\.getcapacitor\.BridgeActivity;\s*/,
@@ -35,17 +35,10 @@ if (!activity.includes("BackgroundScanPlugin.class") || !activity.includes("Hars
     "public class MainActivity extends BridgeActivity {\n" +
     "    @Override\n    public void onCreate(Bundle savedInstanceState) {\n" +
     "        registerPlugin(BackgroundScanPlugin.class);\n" +
-    "        registerPlugin(HarsiBackupPickerPlugin.class);\n" +
     "        super.onCreate(savedInstanceState);\n    }\n}"
   );
   if (!activity.includes("BackgroundScanPlugin.class")) {
     throw new Error("Could not patch the generated MainActivity.java safely.");
-  }
-  if (!activity.includes("HarsiBackupPickerPlugin.class")) {
-    activity = activity.replace(
-      "registerPlugin(BackgroundScanPlugin.class);",
-      "registerPlugin(BackgroundScanPlugin.class);\n        registerPlugin(HarsiBackupPickerPlugin.class);"
-    );
   }
   fs.writeFileSync(activityPath, activity);
 }
@@ -67,4 +60,4 @@ if (!manifest.includes("HarsiScanService")) {
   );
 }
 fs.writeFileSync(manifestPath, manifest);
-console.log("Installed Harsi native scan service, backup file picker, and permissions.");
+console.log("Installed Harsi native scan service and permissions.");
