@@ -80,7 +80,8 @@ const clearFilterButton=document.getElementById("clearFilter");
 const haSort=document.getElementById("haSort");
 let sortDirection="asc";
 let latestResults=[];
-let activeRange={min:4,max:20};
+let activeRange=null;
+let latestProgress=null;
 const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
 const fmtHa=(value)=>value===null||value===undefined?"—":Number(value).toFixed(1);
 function renderRows(){
@@ -153,12 +154,25 @@ function render(job){
   statusEl.lastElementChild.textContent=labels[job.status]||"وضعیت نامشخص";
   const summary=job.summary;
   button.disabled=job.status==="running";
+  if(job.progress){
+    latestProgress=job.progress;
+    document.getElementById("eligible").textContent=fmt(job.progress.total);
+    document.getElementById("updated").textContent=fmt(job.progress.updated);
+    document.getElementById("failed").textContent=fmt(job.progress.failed);
+    message.textContent="پردازش: "+fmt(job.progress.processed)+" از "+fmt(job.progress.total)+
+      " | باقی‌مانده: "+fmt(job.progress.remaining);
+    if(Array.isArray(job.progress.results)){
+      latestResults=job.progress.results;
+      renderRows();
+    }
+  }
   if(summary){
     document.getElementById("eligible").textContent=fmt(summary.eligibleContracts);
     document.getElementById("updated").textContent=fmt(summary.updatedContracts);
     document.getElementById("failed").textContent=fmt(summary.failedContracts);
     message.textContent="آخرین بروزرسانی: "+new Date(summary.completedAt).toLocaleString("fa-IR");
     latestResults=Array.isArray(summary.results)?summary.results:[];
+    latestProgress=null;
     renderRows();
   }
   errorEl.textContent=job.error||"";
