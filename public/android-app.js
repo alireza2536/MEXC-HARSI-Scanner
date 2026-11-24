@@ -141,7 +141,7 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       publish();
       return;
     }
-    if (!running) await runScan();
+    if (!running) scheduleNextScan();
   }
 
   await App.addListener("appStateChange", ({ isActive }) => {
