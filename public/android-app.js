@@ -130,6 +130,12 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
 
   return {
     getStatus,
+    async cancelNow() {
+      if (!running || !controller) return getStatus();
+      controller.abort();
+      await BackgroundScan.stop().catch(() => {});
+      return getStatus();
+    },
     async refreshNow() {
       if (running) return getStatus();
       await BackgroundScan.requestNotificationPermission();
