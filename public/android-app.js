@@ -30,6 +30,15 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
 
   const store = createLocalSqliteStore(db);
   await store.initialize();
+  let isForeground = false;
+  let running = false;
+  let timer = null;
+  let controller = null;
+  let lastSummary = null;
+  let lastError = null;
+  let activeJob = "idle";
+  let completedAt = null;
+
   const savedRows = await store.getLatestHarsiResults(2000);
   if (savedRows.length) {
     lastSummary = {
@@ -49,14 +58,6 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     completedAt = lastSummary.completedAt;
   }
 
-  let isForeground = false;
-  let running = false;
-  let timer = null;
-  let controller = null;
-  let lastSummary = null;
-  let lastError = null;
-  let activeJob = "idle";
-  let completedAt = null;
 
   function getStatus() {
     return {
