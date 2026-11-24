@@ -69,7 +69,8 @@ function upsertStatement(table, columns) {
 export function createLocalSqliteStore(sqliteConnection) {
   if (!sqliteConnection || typeof sqliteConnection.execute !== "function"
       || typeof sqliteConnection.run !== "function"
-      || typeof sqliteConnection.query !== "function") {
+      || typeof sqliteConnection.query !== "function"
+      || typeof sqliteConnection.executeSet !== "function") {
     throw new TypeError("A Capacitor SQLite connection is required.");
   }
 
@@ -128,23 +129,14 @@ export function createLocalSqliteStore(sqliteConnection) {
     },
     async persistCurrentBatch(items) {
       await initialize();
-      await sqliteConnection.execute("BEGIN;");
-      try {
-        await upsertMany(
-          upsertStatement("mexc_futures_ohlcv_15m", CANDLE_COLUMNS),
-          items.map((item) => item.current),
-          CANDLE_COLUMNS
-        );
-        await upsertMany(
-          upsertStatement("mexc_harsi_results_15m", HARSI_COLUMNS),
-          items.map((item) => item.currentHarsi),
-          HARSI_COLUMNS
-        );
-        await sqliteConnection.execute("COMMIT;");
-      } catch (error) {
-        await sqliteConnection.execute("ROLLBACK;");
-        throw error;
+      const candleStatement = upsertStatement("mexc_futures_ohlcv_15m", CANDLE_COLUMNS);
+      const harsiStatement = upsertStatement("mexc_harsi_results_15m", HARSI_COLUMNS);
+      const operations = [];
+      for (const item of items) {
+        operations.push({ statement: candleStatement, values: valuesFor(item.current, CANDLE_COLUMNS) });
+        operations.push({ statement: harsiStatement, values: valuesFor(item.currentHarsi, HARSI_COLUMNS) });
       }
+      if (operations.length) await sqliteConnection.executeSet(operations, true);
     },
     async pruneCandleHistory() {
       await initialize();
