@@ -14,7 +14,7 @@ function log(event, details = {}) {
   console.info(JSON.stringify({ at: new Date().toISOString(), event, ...details }));
 }
 
-async function getHistory(store, mexc, symbol, currentOpen) {
+async function getHistory(store, mexc, symbol, currentOpen, signal) {
   const cached = await store.getHistoricalCandles(
     symbol,
     new Date(currentOpen * 1000).toISOString(),
@@ -31,6 +31,7 @@ async function getHistory(store, mexc, symbol, currentOpen) {
     currentOpen - HISTORY_CANDLES * CANDLE_SECONDS,
     currentOpen - 1
   );
+  if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
   const historical = response
     .filter((candle) => Date.parse(candle.open_time) < currentOpen * 1000)
     .sort((a, b) => Date.parse(a.open_time) - Date.parse(b.open_time))
@@ -69,9 +70,11 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   throwIfAborted();
 
   const serverNowMs = Number.isFinite(nowMs) ? nowMs : await mexc.getServerTimeMs();
+  throwIfAborted();
   const nowSeconds = Math.floor(serverNowMs / 1000);
   const currentOpen = Math.floor(nowSeconds / CANDLE_SECONDS) * CANDLE_SECONDS;
   const contracts = await mexc.getEligibleUsdtContracts(maxPrice);
+  throwIfAborted();
 
   log("local_scan_started", {
     timeframe: "Min15",
@@ -95,7 +98,8 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
       if (index >= contracts.length) return;
       const contract = contracts[index];
       try {
-        const history = await getHistory(store, mexc, contract.symbol, currentOpen);
+        const history = await getHistory(store, mexc, contract.symbol, currentOpen, signal);
+        throwIfAborted();
         if (history.cacheHit) historyCacheHits += 1;
         else historyBackfills += 1;
 
@@ -104,6 +108,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
           currentOpen,
           nowSeconds
         );
+        throwIfAborted();
         const current = currentCandleFrom(currentResponse, currentOpen);
         if (!current) throw new Error("MEXC did not return the currently forming 15m candle.");
 
