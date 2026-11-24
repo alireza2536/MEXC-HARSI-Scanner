@@ -1,14 +1,37 @@
 package com.personal.harsi;
 
+import android.Manifest;
 import android.content.Intent;
+import android.os.Build;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.getcapacitor.JSObject;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
-@CapacitorPlugin(name = "BackgroundScan")
+@CapacitorPlugin(
+    name = "BackgroundScan",
+    permissions = {
+        @Permission(alias = "notifications", strings = { Manifest.permission.POST_NOTIFICATIONS })
+    }
+)
 public class BackgroundScanPlugin extends Plugin {
+    @PluginMethod
+    public void requestNotificationPermission(PluginCall call) {
+        if (Build.VERSION.SDK_INT < 33 || getPermissionState("notifications") == PermissionState.GRANTED) {
+            call.resolve();
+            return;
+        }
+        requestPermissionForAlias("notifications", call, "notificationPermissionCallback");
+    }
+
+    @PermissionCallback
+    private void notificationPermissionCallback(PluginCall call) {
+        call.resolve();
+    }
+
     @PluginMethod
     public void start(PluginCall call) {
         Intent intent = new Intent(getContext(), HarsiScanService.class);
