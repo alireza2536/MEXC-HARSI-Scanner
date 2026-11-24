@@ -18,7 +18,9 @@
     "pg": "^8.16.3",
     "@capacitor-community/sqlite": "^8.1.1",
     "@capacitor/app": "^8.0.0",
-    "@capacitor/core": "^8.0.0"
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/share": "^8.0.0"
   },
   "devDependencies": {
     "@capacitor/android": "^8.0.0",
