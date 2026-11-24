@@ -82,6 +82,16 @@ const filterTo=document.getElementById("filterTo");
 const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
 const haSort=document.getElementById("haSort");
+function useEnglishDigits(input){
+  input.value=String(input.value)
+    .replace(/[۰-۹]/g,digit=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g,digit=>String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+}
+for(const input of [filterFrom,filterTo]){
+  input.style.textAlign="center";
+  input.addEventListener("input",()=>useEnglishDigits(input));
+  useEnglishDigits(input);
+}
 let sortDirection="desc";
 let latestResults=[];
 let activeRange=null;
