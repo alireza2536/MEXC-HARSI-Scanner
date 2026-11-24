@@ -165,7 +165,13 @@ export function createLocalSqliteStore(sqliteConnection) {
       const result = await sqliteConnection.query(
         `SELECT symbol, open_time, close_time, ha_close, ha_open, ha_high, ha_low,
                 rsi_close, scan_match, calculation_version
-         FROM mexc_harsi_results_15m
+         FROM (
+           SELECT symbol, open_time, close_time, ha_close, ha_open, ha_high, ha_low,
+                  rsi_close, scan_match, calculation_version,
+                  ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY open_time DESC) AS position
+           FROM mexc_harsi_results_15m
+         ) latest
+         WHERE position = 1
          ORDER BY close_time DESC, symbol ASC LIMIT ?`,
         [limit]
       );
