@@ -149,7 +149,7 @@ clearFilterButton.addEventListener("click",()=>{
 });
 function render(job){
   statusEl.className="status "+(job.status||"");
-  const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد"};
+  const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد",paused:"اسکن در پس‌زمینه متوقف است"};
   statusEl.lastElementChild.textContent=labels[job.status]||"وضعیت نامشخص";
   const summary=job.summary;
   button.disabled=job.status==="running";
@@ -163,9 +163,15 @@ function render(job){
   }
   errorEl.textContent=job.error||"";
   if(job.status==="running") message.textContent="این مرحله ممکن است چند دقیقه طول بکشد. صفحه را باز نگه دارید.";
+  if(job.status==="paused") message.textContent="برای جلوگیری از مصرف منابع، هنگام رفتن برنامه به پس‌زمینه اسکن متوقف می‌شود.";
   if(job.status==="idle"&&!summary) message.textContent="برای شروع اسکن، دکمه بروزرسانی را بزنید.";
 }
+const nativeApp=Boolean(window.Capacitor?.isNativePlatform?.());
 async function refreshStatus(){
+  if(nativeApp){
+    if(window.localHarsiBridge) render(window.localHarsiBridge.getStatus());
+    return;
+  }
   try{const response=await fetch("/api/status",{cache:"no-store"});render(await response.json());}
   catch{message.textContent="ارتباط با سرور برقرار نشد. صفحه را دوباره بارگذاری کنید.";}
 }
@@ -173,6 +179,11 @@ async function refreshStatus(){
 button.addEventListener("click",async()=>{
   button.disabled=true;errorEl.textContent="";
   try{
+    if(nativeApp){
+      const bridge=await window.localHarsiReady;
+      render(await bridge.refreshNow());
+      return;
+    }
     const response=await fetch("/api/refresh",{method:"POST"});
     const data=await response.json();
     if(!response.ok) throw new Error(data.error||"شروع بروزرسانی ناموفق بود.");
@@ -182,5 +193,6 @@ button.addEventListener("click",async()=>{
 refreshStatus();
 setInterval(refreshStatus,3000);
 </script>
+<script type="module" src="./android-app.js"></script>
 </body>
 </html>
