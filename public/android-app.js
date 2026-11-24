@@ -51,7 +51,7 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       completedAt: savedRows[0].close_time,
       results: savedRows.map((row) => ({
         symbol: row.symbol,
-        haClose: Number(row.ha_close),
+        haClose: row.ha_close === null || row.ha_close === undefined ? null : Number(row.ha_close),
         candleOpenTime: row.open_time
       }))
     };
