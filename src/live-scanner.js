@@ -89,27 +89,80 @@ async function getHistoricalCandles(pool, mexc, symbol, currentOpen) {
   return { candles: historical, cacheHit: false };
 }
 
-async function saveCurrentCandle(pool, current) {
-  await pool.query(
-    "INSERT INTO public.mexc_futures_ohlcv_15m " +
-      "(symbol, open_time, close_time, open_price, high_price, low_price, close_price, volume, amount) " +
-      "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) " +
-      "ON CONFLICT (symbol, open_time) DO UPDATE SET " +
-      "close_time=EXCLUDED.close_time, open_price=EXCLUDED.open_price, " +
-      "high_price=EXCLUDED.high_price, low_price=EXCLUDED.low_price, " +
-      "close_price=EXCLUDED.close_price, volume=EXCLUDED.volume, " +
-      "amount=EXCLUDED.amount, updated_at=now()",
-    [current.symbol, current.open_time, current.close_time, current.open_price,
-      current.high_price, current.low_price, current.close_price, current.volume, current.amount]
-  );
+const CANDLE_COLUMNS = [
+  "symbol", "open_time", "close_time", "open_price", "high_price",
+  "low_price", "close_price", "volume", "amount"
+];
+const HARSI_COLUMNS = [
+  "symbol", "open_time", "close_time", "rsi_open", "rsi_high", "rsi_low",
+  "rsi_close", "ha_open", "ha_high", "ha_low", "ha_close",
+  "scan_match", "calculation_version"
+];
+const LIVE_WRITE_BATCH_SIZE = 50;
 
-  // Keep the rolling cache bounded to the 2,000 closed candles plus the current candle.
+async function upsertRows(queryable, table, columns, rows, updateClause) {
+  for (let offset = 0; offset < rows.length; offset += LIVE_WRITE_BATCH_SIZE) {
+    const batch = rows.slice(offset, offset + LIVE_WRITE_BATCH_SIZE);
+    const values = [];
+    const tuples = batch.map((row, rowIndex) => {
+      const placeholders = columns.map((column, columnIndex) => {
+        values.push(row[column]);
+        return "$" + (rowIndex * columns.length + columnIndex + 1);
+      });
+      return "(" + placeholders.join(",") + ")";
+    });
+    const sql = "INSERT INTO " + table + " (" + columns.join(",") + ") " +
+      "VALUES " + tuples.join(",") +
+      " ON CONFLICT (symbol, open_time) DO UPDATE SET " + updateClause;
+    await queryable.query(sql, values);
+  }
+}
+
+async function persistCurrentBatch(pool, pending) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await upsertRows(
+      client,
+      "public.mexc_futures_ohlcv_15m",
+      CANDLE_COLUMNS,
+      pending.map((item) => item.current),
+      "close_time=EXCLUDED.close_time, open_price=EXCLUDED.open_price, " +
+        "high_price=EXCLUDED.high_price, low_price=EXCLUDED.low_price, " +
+        "close_price=EXCLUDED.close_price, volume=EXCLUDED.volume, " +
+        "amount=EXCLUDED.amount, updated_at=now()"
+    );
+    await upsertRows(
+      client,
+      "public.mexc_harsi_results_15m",
+      HARSI_COLUMNS,
+      pending.map((item) => item.currentHarsi),
+      "close_time=EXCLUDED.close_time, rsi_open=EXCLUDED.rsi_open, " +
+        "rsi_high=EXCLUDED.rsi_high, rsi_low=EXCLUDED.rsi_low, " +
+        "rsi_close=EXCLUDED.rsi_close, ha_open=EXCLUDED.ha_open, " +
+        "ha_high=EXCLUDED.ha_high, ha_low=EXCLUDED.ha_low, ha_close=EXCLUDED.ha_close, " +
+        "scan_match=NULL, calculation_version=EXCLUDED.calculation_version, updated_at=now()"
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function pruneCandleHistory(pool) {
+  // Keep the newest 2,000 closed candles plus the currently forming candle per symbol.
   await pool.query(
-    "DELETE FROM public.mexc_futures_ohlcv_15m " +
-      "WHERE symbol = $1 AND open_time < (" +
-      "SELECT open_time FROM public.mexc_futures_ohlcv_15m " +
-      "WHERE symbol = $1 ORDER BY open_time DESC OFFSET $2 LIMIT 1)",
-    [current.symbol, HISTORY_CANDLES]
+    "WITH ranked AS (" +
+      "SELECT symbol, open_time, ROW_NUMBER() OVER (" +
+        "PARTITION BY symbol ORDER BY open_time DESC" +
+      ") AS row_number FROM public.mexc_futures_ohlcv_15m" +
+    ") DELETE FROM public.mexc_futures_ohlcv_15m AS candles " +
+      "USING ranked WHERE candles.symbol = ranked.symbol " +
+      "AND candles.open_time = ranked.open_time AND ranked.row_number > $1",
+    [HISTORY_CANDLES + 1]
   );
 }
 
@@ -148,6 +201,7 @@ export async function runLiveScan() {
     let historyCacheHits = 0;
     let historyBackfills = 0;
     const results = [];
+    const pendingPersistence = [];
 
     let nextContractIndex = 0;
     async function processContracts() {
@@ -179,32 +233,10 @@ export async function runLiveScan() {
             throw new Error("HARSI value is not ready for the current candle.");
           }
 
-          await saveCurrentCandle(pool, current);
-
-          await pool.query(
-            "INSERT INTO public.mexc_harsi_results_15m " +
-              "(symbol, open_time, close_time, rsi_open, rsi_high, rsi_low, rsi_close, " +
-              "ha_open, ha_high, ha_low, ha_close, scan_match, calculation_version) " +
-              "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,$12) " +
-              "ON CONFLICT (symbol, open_time) DO UPDATE SET " +
-              "close_time=EXCLUDED.close_time, rsi_open=EXCLUDED.rsi_open, " +
-              "rsi_high=EXCLUDED.rsi_high, rsi_low=EXCLUDED.rsi_low, " +
-              "rsi_close=EXCLUDED.rsi_close, ha_open=EXCLUDED.ha_open, " +
-              "ha_high=EXCLUDED.ha_high, ha_low=EXCLUDED.ha_low, ha_close=EXCLUDED.ha_close, " +
-              "scan_match=NULL, calculation_version=EXCLUDED.calculation_version, updated_at=now()",
-            [currentHarsi.symbol, currentHarsi.open_time, currentHarsi.close_time,
-              currentHarsi.rsi_open, currentHarsi.rsi_high, currentHarsi.rsi_low, currentHarsi.rsi_close,
-              currentHarsi.ha_open, currentHarsi.ha_high, currentHarsi.ha_low, currentHarsi.ha_close,
-              currentHarsi.calculation_version]
-          );
-
-          updatedContracts += 1;
-          results.push({
-            symbol: contract.symbol,
-            lastPrice: contract.lastPrice,
-            candleClose: current.close_price,
-            haClose: currentHarsi.ha_close,
-            candleOpenTime: current.open_time
+          pendingPersistence.push({
+            contract,
+            current,
+            currentHarsi
           });
         } catch (error) {
           failedContracts += 1;
@@ -217,6 +249,35 @@ export async function runLiveScan() {
     // creating an unbounded number of requests or database operations.
     const workerCount = Math.min(5, contracts.length);
     await Promise.all(Array.from({ length: workerCount }, () => processContracts()));
+
+    // Persist current candles and HARSI rows in small atomic batches instead of
+    // issuing separate database writes for every contract.
+    for (let offset = 0; offset < pendingPersistence.length; offset += LIVE_WRITE_BATCH_SIZE) {
+      const batch = pendingPersistence.slice(offset, offset + LIVE_WRITE_BATCH_SIZE);
+      try {
+        await persistCurrentBatch(pool, batch);
+        updatedContracts += batch.length;
+        for (const item of batch) {
+          results.push({
+            symbol: item.contract.symbol,
+            lastPrice: item.contract.lastPrice,
+            candleClose: item.current.close_price,
+            haClose: item.currentHarsi.ha_close,
+            candleOpenTime: item.current.open_time
+          });
+        }
+      } catch (error) {
+        failedContracts += batch.length;
+        for (const item of batch) {
+          log("live_contract_failed", {
+            symbol: item.contract.symbol,
+            error: "Batch persistence failed: " + error.message
+          });
+        }
+      }
+    }
+
+    await pruneCandleHistory(pool);
 
     const summary = {
       eligibleContracts: contracts.length,
