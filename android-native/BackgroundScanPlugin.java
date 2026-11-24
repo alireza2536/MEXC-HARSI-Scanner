@@ -29,6 +29,10 @@ public class BackgroundScanPlugin extends Plugin {
 
     @PermissionCallback
     private void notificationPermissionCallback(PluginCall call) {
+        if (getPermissionState("notifications") != PermissionState.GRANTED) {
+            call.reject("برای نمایش اعلان پیشرفت اسکن، اجازه اعلان‌های Harsi را فعال کنید.");
+            return;
+        }
         call.resolve();
     }
 
