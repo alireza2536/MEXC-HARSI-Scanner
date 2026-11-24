@@ -17,6 +17,7 @@ export const config = {
   maxPrice: numberFromEnv("MAX_PRICE_USDT", numberFromEnv("VITE_MAX_PRICE_USDT", 10)),
   historyDays: numberFromEnv("HISTORY_DAYS", 3),
   requestSpacingMs: numberFromEnv("MEXC_REQUEST_SPACING_MS", 125),
+  requestTimeoutMs: numberFromEnv("MEXC_REQUEST_TIMEOUT_MS", 25000),
   upsertBatchSize: numberFromEnv("UPSERT_BATCH_SIZE", 500),
   databaseUrl: runtimeEnv.DATABASE_URL
 };
