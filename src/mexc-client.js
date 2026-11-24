@@ -72,12 +72,18 @@ export function isEligibleCryptoBaseAsset(baseCoin) {
 }
 
 export class MexcClient {
-  #lastRequestAt = 0;
+  #nextRequestAt = 0;
+
+  async #waitForRequestSlot() {
+    // Reserve each start time synchronously so concurrent workers still
+    // respect the configured minimum spacing between MEXC requests.
+    const scheduledAt = Math.max(Date.now(), this.#nextRequestAt);
+    this.#nextRequestAt = scheduledAt + Math.max(0, config.requestSpacingMs);
+    const wait = scheduledAt - Date.now();
+    if (wait > 0) await sleep(wait);
+  }
 
   async #get(path, params = {}) {
-    const wait = Math.max(0, config.requestSpacingMs - (Date.now() - this.#lastRequestAt));
-    if (wait) await sleep(wait);
-
     const url = new URL(`${config.mexcBaseUrl}${path}`);
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
@@ -85,7 +91,7 @@ export class MexcClient {
 
     let response;
     for (let attempt = 0; attempt < 4; attempt += 1) {
-      this.#lastRequestAt = Date.now();
+      await this.#waitForRequestSlot();
       response = await fetch(url, { headers: { accept: "application/json" } });
       if (response.ok) break;
       if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 3) {
