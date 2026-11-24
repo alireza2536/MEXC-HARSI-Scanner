@@ -150,3 +150,27 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     }
   };
 }
+
+
+if (Capacitor.isNativePlatform()) {
+  window.localHarsiReady = startAndroidLocalApp({
+    onStatus: (job) => window.localHarsiRender?.(job)
+  }).then((runtime) => {
+    window.localHarsiBridge = runtime;
+    window.localHarsiRender?.(runtime.getStatus());
+    return runtime;
+  }).catch((error) => {
+    const failed = {
+      status: "failed",
+      startedAt: null,
+      finishedAt: null,
+      error: error.message || String(error),
+      summary: null
+    };
+    window.localHarsiRender?.(failed);
+    return {
+      getStatus: () => failed,
+      async refreshNow() { throw error; }
+    };
+  });
+}
