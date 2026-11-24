@@ -14,11 +14,11 @@ export const config = {
   mexcBaseUrl: (runtimeEnv.MEXC_BASE_URL || runtimeEnv.VITE_MEXC_BASE_URL || "https://contract.mexc.com").replace(/\/$/, ""),
   interval: runtimeEnv.TIMEFRAME || "Min15",
   intervalSeconds: 15 * 60,
-  maxPrice: numberFromEnv("MAX_PRICE_USDT", 10),
+  maxPrice: numberFromEnv("MAX_PRICE_USDT", numberFromEnv("VITE_MAX_PRICE_USDT", 10)),
   historyDays: numberFromEnv("HISTORY_DAYS", 3),
   requestSpacingMs: numberFromEnv("MEXC_REQUEST_SPACING_MS", 125),
   upsertBatchSize: numberFromEnv("UPSERT_BATCH_SIZE", 500),
-  databaseUrl: process.env.DATABASE_URL
+  databaseUrl: runtimeEnv.DATABASE_URL
 };
 
 export function validateConfig() {
