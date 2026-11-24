@@ -47,8 +47,8 @@ async function getHistory(store, mexc, symbol, currentOpen, signal) {
 }
 
 /**
- * Foreground-only local scanner. The caller owns app lifecycle and must call
- * this function only while the Android app is active.
+ * Local scanner. The Android caller owns scan lifecycle and keeps a native
+ * foreground service active for the duration of each user-started scan.
  */
 export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal } = {}) {
   if (!mexc || !store) throw new TypeError("MEXC client and local store are required.");
