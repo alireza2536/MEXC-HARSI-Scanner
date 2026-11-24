@@ -159,7 +159,7 @@ clearFilterButton.addEventListener("click",()=>{
 });
 function render(job){
   statusEl.className="status "+(job.status||"");
-  const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد",paused:"اسکن در پس‌زمینه متوقف است"};
+  const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد",paused:"اسکن متوقف شد"};
   statusEl.lastElementChild.textContent=labels[job.status]||"وضعیت نامشخص";
   const summary=job.summary;
   button.disabled=job.status==="running";
@@ -185,8 +185,8 @@ function render(job){
     renderRows();
   }
   errorEl.textContent=job.error||"";
-  if(job.status==="running"&&!job.progress) message.textContent="این مرحله ممکن است چند دقیقه طول بکشد. صفحه را باز نگه دارید.";
-  if(job.status==="paused") message.textContent="برای جلوگیری از مصرف منابع، هنگام رفتن برنامه به پس‌زمینه اسکن متوقف می‌شود.";
+  if(job.status==="running"&&!job.progress) message.textContent="اسکن پس از زدن دکمه بروزرسانی ادامه می‌یابد؛ حتی اگر از برنامه خارج شوید یا صفحه گوشی خاموش شود.";
+  if(job.status==="paused") message.textContent="اسکن متوقف شد. برای شروع دوباره، دکمه بروزرسانی را بزنید.";
   if(job.status==="idle"&&!summary) message.textContent="برای شروع اسکن، دکمه بروزرسانی را بزنید.";
 }
 window.localHarsiRender=render;
