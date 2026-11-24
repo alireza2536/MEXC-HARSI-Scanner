@@ -88,8 +88,46 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   let historyBackfills = 0;
   let failedContracts = 0;
   let updatedContracts = 0;
+  let processedContracts = 0;
   const pending = [];
   const results = [];
+  let persistQueue = Promise.resolve();
+
+  function publishProgress(symbol) {
+    onProgress?.({
+      processed: processedContracts,
+      total: contracts.length,
+      remaining: Math.max(0, contracts.length - processedContracts),
+      updated: updatedContracts,
+      failed: failedContracts,
+      symbol,
+      results: results.slice()
+    });
+  }
+
+  function queuePersistence(batch) {
+    persistQueue = persistQueue.then(async () => {
+      try {
+        await store.persistCurrentBatch(batch);
+        updatedContracts += batch.length;
+        for (const item of batch) {
+          results.push({
+            symbol: item.contract.symbol,
+            lastPrice: item.contract.lastPrice,
+            candleClose: item.current.close_price,
+            haClose: item.currentHarsi.ha_close,
+            candleOpenTime: item.current.open_time
+          });
+        }
+      } catch (error) {
+        failedContracts += batch.length;
+        for (const item of batch) {
+          log("local_persistence_failed", { symbol: item.contract.symbol, error: error.message });
+        }
+      }
+    });
+    return persistQueue;
+  }
 
   async function worker() {
     while (true) {
@@ -117,16 +155,17 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
         if (!currentHarsi) throw new Error("HARSI value is not ready for the current candle.");
 
         pending.push({ contract, current, currentHarsi });
+        if (pending.length >= PERSISTENCE_BATCH_SIZE) {
+          const batch = pending.splice(0, PERSISTENCE_BATCH_SIZE);
+          await queuePersistence(batch);
+        }
       } catch (error) {
         if (signal?.aborted || error.name === "AbortError") return;
         failedContracts += 1;
         log("local_contract_failed", { symbol: contract.symbol, error: error.message });
       }
-      onProgress?.({
-        processed: index + 1,
-        total: contracts.length,
-        symbol: contract.symbol
-      });
+      processedContracts += 1;
+      publishProgress(contract.symbol);
     }
   }
 
@@ -135,28 +174,14 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   );
   throwIfAborted();
 
-  for (let offset = 0; offset < pending.length; offset += PERSISTENCE_BATCH_SIZE) {
-    throwIfAborted();
-    const batch = pending.slice(offset, offset + PERSISTENCE_BATCH_SIZE);
-    try {
-      await store.persistCurrentBatch(batch);
-      updatedContracts += batch.length;
-      for (const item of batch) {
-        results.push({
-          symbol: item.contract.symbol,
-          lastPrice: item.contract.lastPrice,
-          candleClose: item.current.close_price,
-          haClose: item.currentHarsi.ha_close,
-          candleOpenTime: item.current.open_time
-        });
-      }
-    } catch (error) {
-      failedContracts += batch.length;
-      for (const item of batch) {
-        log("local_persistence_failed", { symbol: item.contract.symbol, error: error.message });
-      }
-    }
+  throwIfAborted();
+  if (pending.length) {
+    const batch = pending.splice(0, pending.length);
+    await queuePersistence(batch);
   }
+  await persistQueue;
+  throwIfAborted();
+  publishProgress(null);
 
   await store.pruneCandleHistory();
   const summary = {
