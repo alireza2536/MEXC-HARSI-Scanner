@@ -83,14 +83,15 @@ export function createLocalSqliteStore(sqliteConnection) {
     initialized = true;
   }
 
-  async function upsertMany(statement, rows, columns, batchSize = 100) {
+  async function upsertMany(statement, rows, columns, batchSize = 500) {
     for (let offset = 0; offset < rows.length; offset += batchSize) {
       const batch = rows.slice(offset, offset + batchSize);
-      // Execute one prepared statement per row; the native SQLite plugin
-      // binds values safely and avoids constructing SQL from market data.
-      for (const row of batch) {
-        await sqliteConnection.run(statement, valuesFor(row, columns));
-      }
+      // One native bridge call per bounded batch; SQLite binds every value.
+      const operations = batch.map((row) => ({
+        statement,
+        values: valuesFor(row, columns)
+      }));
+      if (operations.length) await sqliteConnection.executeSet(operations, true);
     }
   }
 
