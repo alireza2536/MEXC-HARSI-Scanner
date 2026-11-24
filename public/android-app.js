@@ -129,6 +129,9 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     getStatus,
     async createBackup() {
       if (running) throw new Error("لطفاً تا پایان اسکن صبر کن و دوباره پشتیبان بگیر.");
+      const fileName = "harsi-backup-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+      const destination = await HarsiBackupPicker.chooseDestination({ fileName });
+      if (destination?.cancelled) return { cancelled: true };
       const exported = await db.exportToJson("full");
       const backup = {
         ...exported,
@@ -138,13 +141,11 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
         backupCreatedAt: new Date().toISOString(),
         backupFormat: "harsi-local-sqlite-v1"
       };
-      const fileName = "harsi-backup-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
-      const result = await HarsiBackupPicker.saveJson({
-        fileName,
+      await HarsiBackupPicker.writeJson({
+        uri: destination.uri,
         data: JSON.stringify(backup)
       });
-      if (result?.cancelled) return { cancelled: true };
-      return { fileName: result?.fileName || fileName, uri: result?.uri || null };
+      return { fileName: destination.fileName || fileName, uri: destination.uri };
     },
     async restoreBackup(jsonString) {
       if (running) throw new Error("هنگام اجرای اسکن نمی‌توان بانک را بازیابی کرد.");
