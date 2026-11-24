@@ -94,22 +94,42 @@ export class MexcClient {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
     }
 
-    let response;
     for (let attempt = 0; attempt < 4; attempt += 1) {
       await this.#waitForRequestSlot();
-      response = await fetch(url, { headers: { accept: "application/json" }, signal: this.signal });
-      if (response.ok) break;
-      if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 3) {
-        throw new Error(`MEXC HTTP ${response.status} for ${path}`);
-      }
-      await sleep(500 * (2 ** attempt));
-    }
+      const timeoutMs = Math.max(1000, Number(config.requestTimeoutMs) || 25000);
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
+      const requestSignal = this.signal
+        ? AbortSignal.any([this.signal, timeoutSignal])
+        : timeoutSignal;
+      try {
+        const response = await fetch(url, {
+          headers: { accept: "application/json" },
+          signal: requestSignal
+        });
+        if (!response.ok) {
+          if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 3) {
+            throw new Error(`MEXC HTTP ${response.status} for ${path}`);
+          }
+          await sleep(500 * (2 ** attempt));
+          continue;
+        }
 
-    const body = await response.json();
-    if (body?.success === false || (body?.code !== undefined && Number(body.code) !== 0)) {
-      throw new Error(`MEXC API error for ${path}: ${body.message || body.code || "unknown"}`);
+        const body = await response.json();
+        if (body?.success === false || (body?.code !== undefined && Number(body.code) !== 0)) {
+          throw new Error(`MEXC API error for ${path}: ${body.message || body.code || "unknown"}`);
+        }
+        return body?.data;
+      } catch (error) {
+        if (this.signal?.aborted) {
+          throw new DOMException("Scan was stopped.", "AbortError");
+        }
+        if (timeoutSignal.aborted) {
+          throw new Error(`MEXC request timed out after ${timeoutMs} ms for ${path}`);
+        }
+        throw error;
+      }
     }
-    return body?.data;
+    throw new Error(`MEXC request failed for ${path}`);
   }
 
   async getServerTimeMs() {
