@@ -192,7 +192,7 @@ button.addEventListener("click",async()=>{
   }catch(error){errorEl.textContent=error.message;button.disabled=false;}
 });
 refreshStatus();
-setInterval(refreshStatus,3000);
+if(!nativeApp) setInterval(refreshStatus,3000);
 </script>
 <script type="module" src="./android-app.js"></script>
 </body>
