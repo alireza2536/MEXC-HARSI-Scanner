@@ -37,6 +37,9 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Install native background scan service
+        run: node scripts/prepare-android-background.js
+
       - name: Sync Capacitor plugins and web assets
         run: npx cap sync android
 
