@@ -1,11 +1,11 @@
 # Android Local Harsi App — Implementation Plan
 
 ## Goal
-Create a private Android APK that runs the existing Harsi scanner locally on the phone while the app is in the foreground. The existing Render deployment and Neon database remain untouched until the Android build is verified against the current service.
+Create a private Android APK that runs the existing Harsi scanner locally on the phone including while the app is in the background after the user manually starts a scan. The existing Render deployment and Neon database remain untouched until the Android build is verified against the current service.
 
 ## Confirmed constraints
 - Private, single-user Android app; no Play Store release required.
-- Scanning runs only while the app is open. Stop scheduling scans when the app is backgrounded or closed.
+- A scan starts only when the user taps «بروزرسانی». It continues in the background with an Android foreground-service notification and partial wake lock, then stops when that one scan completes. No periodic or automatic follow-up scan is scheduled. Android force-stop or system termination can still interrupt it.
 - Run the same 15-minute MEXC futures scan and preserve the current eligibility rules, HARSI calculation, 2,000 closed-candle history, current-candle handling, 7-day HARSI-result retention, filtering and sorting.
 - No Render or Neon dependency in the final local app.
 - MEXC remains the external data source, so internet access is still required for fresh market data.
@@ -24,7 +24,7 @@ Create a private Android APK that runs the existing Harsi scanner locally on the
 Use Capacitor to package the existing web UI as a private Android application. Keep the existing JavaScript HARSI implementation unchanged. Add native Android bridges for:
 1. MEXC HTTP requests, avoiding browser CORS limitations and keeping networking behavior controlled.
 2. Local SQLite persistence, replacing Neon/PostgreSQL.
-3. App lifecycle notifications so the 15-minute scheduler runs only while the app is foregrounded.
+3. A native Android foreground service and partial wake lock to keep a user-started scan active while the app is backgrounded; stop the service when that scan finishes.
 
 The local scanner should use the same contract discovery, candle normalization, request spacing/retry behavior, candle-window validation, and HARSI calculation as the current live scanner. Persistence should retain the latest 2,000 closed candles plus the currently forming candle per symbol, and keep HARSI result rows for seven days. Any necessary adaptations must be verified by parity tests before they are accepted.
 
@@ -33,7 +33,7 @@ The local scanner should use the same contract discovery, candle normalization, 
 - Added a Capacitor 8 / Vite build configuration and a workflow that generates an Android project and builds a debug APK artifact.
 - Added a native SQLite repository using `@capacitor-community/sqlite`, with transactional batched writes, latest 2,000 closed candles plus the forming candle, and seven-day HARSI retention.
 - Added a local scanner orchestration module that reuses `MexcClient`, `hasCompleteCandleWindow`, and the unchanged `calculateHarsi` function.
-- Added Android foreground lifecycle handling: start a scan when the app becomes active, align subsequent scans to 15-minute candle boundaries, and cancel/stop scheduling when the app goes to the background.
+- Replaced automatic foreground lifecycle scheduling with a manual-only scan flow. The user starts each scan with «بروزرسانی»; no scan starts on app launch and no recurring 15-minute timer is created. The Android foreground service shows progress and holds a partial wake lock until the scan finishes.
 - Added restoration of the latest saved HARSI value per symbol from local SQLite when the app opens.
 - Added tests for the local scanner and SQLite repository. The latest PR-check run should be used as the authoritative test result.
 - APK generation is automated, but installation on the target Samsung phone and Render-vs-Android value parity are still pending. No APK should be treated as production-ready before those checks.
@@ -48,9 +48,10 @@ The local scanner should use the same contract discovery, candle normalization, 
 
 ## Acceptance checks
 - Build produces an installable Android APK.
-- App can scan while foregrounded and does not schedule new scans after backgrounding/closing.
+- A scan starts only after the user taps «بروزرسانی», continues while backgrounded/screen-off with a visible foreground-service notification, and stops after completion. Reopening the app does not start a scan automatically.
 - No Render, Neon, PostgreSQL connection string, or cloud database is required by the Android app.
 - The exact same eligible symbols and MEXC candle timestamps are used for parity comparison.
 - HARSI values match the existing implementation for identical input candles (within the established numeric precision).
 - Local storage retains the expected history and prunes expired HARSI results correctly.
 - Existing main branch and Render deployment remain unchanged until the user explicitly approves any later migration.
+\n\n## Background-scan limitations\n\nThe Android foreground service improves process priority and keeps the CPU awake during the manual scan. Android can still interrupt work if the user force-stops the app, the OS terminates the process, or device/vendor power management imposes restrictions. Android 13+ notification permission is requested when the user starts a scan.\n
