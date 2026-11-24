@@ -74,7 +74,12 @@ export function isEligibleCryptoBaseAsset(baseCoin) {
 export class MexcClient {
   #nextRequestAt = 0;
 
+  constructor({ signal } = {}) {
+    this.signal = signal;
+  }
+
   async #waitForRequestSlot() {
+    if (this.signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
     // Reserve each start time synchronously so concurrent workers still
     // respect the configured minimum spacing between MEXC requests.
     const scheduledAt = Math.max(Date.now(), this.#nextRequestAt);
@@ -92,7 +97,7 @@ export class MexcClient {
     let response;
     for (let attempt = 0; attempt < 4; attempt += 1) {
       await this.#waitForRequestSlot();
-      response = await fetch(url, { headers: { accept: "application/json" } });
+      response = await fetch(url, { headers: { accept: "application/json" }, signal: this.signal });
       if (response.ok) break;
       if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 3) {
         throw new Error(`MEXC HTTP ${response.status} for ${path}`);
