@@ -1,9 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const androidRoot = path.resolve("android");
-const javaRoot = path.join(androidRoot, "app", "src", "main", "java");
-const manifestPath = path.join(androidRoot, "app", "src", "main", "AndroidManifest.xml");
+const javaRoot = path.resolve("android/app/src/main/java");
+const manifestPath = path.resolve("android/app/src/main/AndroidManifest.xml");
 
 function findFile(directory, name) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -26,16 +25,19 @@ for (const name of ["BackgroundScanPlugin.java", "HarsiScanService.java"]) {
 let activity = fs.readFileSync(activityPath, "utf8");
 if (!activity.includes("BackgroundScanPlugin.class")) {
   activity = activity.replace(
-    /import com\\.getcapacitor\\.BridgeActivity;\\s*/,
+    /import com\.getcapacitor\.BridgeActivity;\s*/,
     "import com.getcapacitor.BridgeActivity;\\nimport android.os.Bundle;\\n"
   );
   activity = activity.replace(
-    /public class MainActivity extends BridgeActivity\\s*\\{\\s*\\}/,
+    /public class MainActivity extends BridgeActivity\s*\{\s*\}/,
     "public class MainActivity extends BridgeActivity {\\n" +
     "    @Override\\n    public void onCreate(Bundle savedInstanceState) {\\n" +
     "        registerPlugin(BackgroundScanPlugin.class);\\n" +
     "        super.onCreate(savedInstanceState);\\n    }\\n}"
   );
+  if (!activity.includes("BackgroundScanPlugin.class")) {
+    throw new Error("Could not patch the generated MainActivity.java safely.");
+  }
   fs.writeFileSync(activityPath, activity);
 }
 
