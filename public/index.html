@@ -164,7 +164,6 @@ function render(job){
   errorEl.textContent=job.error||"";
   if(job.status==="running") message.textContent="این مرحله ممکن است چند دقیقه طول بکشد. صفحه را باز نگه دارید.";
   if(job.status==="paused") message.textContent="برای جلوگیری از مصرف منابع، هنگام رفتن برنامه به پس‌زمینه اسکن متوقف می‌شود.";
-  if(job.status==="paused") message.textContent="برای جلوگیری از مصرف منابع، هنگام رفتن برنامه به پس‌زمینه اسکن متوقف می‌شود.";
   if(job.status==="idle"&&!summary) message.textContent="برای شروع اسکن، دکمه بروزرسانی را بزنید.";
 }
 window.localHarsiRender=render;
