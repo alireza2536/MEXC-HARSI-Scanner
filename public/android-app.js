@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
-import { App } from "@capacitor/app";
+import { registerPlugin } from "@capacitor/core";
 import { CapacitorSQLite, SQLiteConnection } from "@capacitor-community/sqlite";
 import { config } from "../src/config.js";
 import { MexcClient } from "../src/mexc-client.js";
@@ -9,12 +9,7 @@ import { runLocalHarsiScan } from "../src/local-scanner.js";
 import { createLocalSqliteStore } from "../src/local-sqlite-store.js";
 
 const DATABASE_NAME = "harsi_local";
-const CANDLE_INTERVAL_MS = 15 * 60 * 1000;
-const NEXT_SCAN_GRACE_MS = 5000;
-
-function makeAbortError() {
-  return new DOMException("Scan was stopped because the app left the foreground.", "AbortError");
-}
+const BackgroundScan = registerPlugin("BackgroundScan");
 
 export async function startAndroidLocalApp({ onStatus } = {}) {
   if (!Capacitor.isNativePlatform()) {
@@ -38,9 +33,7 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
   }
 
   await openStore();
-  let isForeground = false;
   let running = false;
-  let timer = null;
   let controller = null;
   let lastSummary = null;
   let lastError = null;
@@ -88,27 +81,8 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     onStatus?.(getStatus());
   }
 
-  function clearScheduledScan() {
-    if (timer !== null) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  }
-
-  function scheduleNextScan() {
-    clearScheduledScan();
-    if (!isForeground) return;
-    const now = Date.now();
-    const nextBoundary = (Math.floor(now / CANDLE_INTERVAL_MS) + 1) * CANDLE_INTERVAL_MS;
-    const delay = Math.max(1000, nextBoundary + NEXT_SCAN_GRACE_MS - now);
-    timer = setTimeout(() => {
-      timer = null;
-      void runScan();
-    }, delay);
-  }
-
   async function runScan() {
-    if (!isForeground || running) return;
+    if (running) return;
     running = true;
     controller = new AbortController();
     activeJob = "running";
@@ -122,18 +96,25 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
         maxPrice: config.maxPrice,
         signal: controller.signal,
         onProgress: (progress) => {
-          if (isForeground && !controller?.signal.aborted) {
+          if (!controller?.signal.aborted) {
             onStatus?.({ ...getStatus(), progress });
+            if (progress.processed === 1 || progress.processed % 5 === 0 || progress.processed === progress.total) {
+              void BackgroundScan.update({
+                message: `پردازش ${progress.processed} از ${progress.total} ارز`,
+                processed: progress.processed,
+                total: progress.total
+              }).catch(() => {});
+            }
           }
         }
       });
-      if (!isForeground || controller.signal.aborted) throw makeAbortError();
+      if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
       lastSummary = summary;
       completedAt = summary.completedAt;
       activeJob = "completed";
       lastError = null;
     } catch (error) {
-      if (error.name === "AbortError" || controller.signal.aborted || !isForeground) {
+      if (error.name === "AbortError" || controller.signal.aborted) {
         activeJob = "paused";
       } else {
         activeJob = "failed";
@@ -143,28 +124,9 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       running = false;
       controller = null;
       publish();
-      if (isForeground) scheduleNextScan();
+
     }
   }
-
-  async function setForeground(active) {
-    isForeground = active;
-    if (!active) {
-      clearScheduledScan();
-      if (controller && !controller.signal.aborted) controller.abort();
-      if (!running) activeJob = "paused";
-      publish();
-      return;
-    }
-    if (!running) scheduleNextScan();
-  }
-
-  await App.addListener("appStateChange", ({ isActive }) => {
-    void setForeground(Boolean(isActive));
-  });
-
-  const appState = await App.getState();
-  await setForeground(Boolean(appState.isActive));
 
   return {
     getStatus,
@@ -214,18 +176,14 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       return { results: lastSummary?.results?.length || 0 };
     },
     async refreshNow() {
-      if (!isForeground) throw new Error("برای اسکن، برنامه باید در پیش‌زمینه باز باشد.");
-      clearScheduledScan();
       if (running) return getStatus();
-      await runScan();
-      return getStatus();
-    },
-    async close() {
-      isForeground = false;
-      clearScheduledScan();
-      if (controller && !controller.signal.aborted) controller.abort();
-      await App.removeAllListeners();
-      await db.close();
+      await BackgroundScan.start();
+      try {
+        await runScan();
+        return getStatus();
+      } finally {
+        await BackgroundScan.stop();
+      }
     }
   };
 }
