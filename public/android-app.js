@@ -1,6 +1,4 @@
 import { Capacitor } from "@capacitor/core";
-import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
-import { Share } from "@capacitor/share";
 import { registerPlugin } from "@capacitor/core";
 import { CapacitorSQLite, SQLiteConnection } from "@capacitor-community/sqlite";
 import { config } from "../src/config.js";
@@ -10,6 +8,7 @@ import { createLocalSqliteStore } from "../src/local-sqlite-store.js";
 
 const DATABASE_NAME = "harsi_local";
 const BackgroundScan = registerPlugin("BackgroundScan");
+const HarsiBackupPicker = registerPlugin("HarsiBackupPicker");
 
 export async function startAndroidLocalApp({ onStatus } = {}) {
   if (!Capacitor.isNativePlatform()) {
@@ -65,7 +64,6 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
   }
 
   await loadSavedRows();
-
 
   function getStatus() {
     return {
@@ -124,7 +122,6 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       running = false;
       controller = null;
       publish();
-
     }
   }
 
@@ -142,19 +139,12 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
         backupFormat: "harsi-local-sqlite-v1"
       };
       const fileName = "harsi-backup-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
-      const file = await Filesystem.writeFile({
-        path: fileName,
-        data: JSON.stringify(backup),
-        directory: Directory.Cache,
-        encoding: Encoding.UTF8
+      const result = await HarsiBackupPicker.saveJson({
+        fileName,
+        data: JSON.stringify(backup)
       });
-      await Share.share({
-        title: "پشتیبان بانک Harsi",
-        text: "فایل پشتیبان بانک اطلاعاتی Harsi",
-        files: [file.uri],
-        dialogTitle: "ذخیره فایل پشتیبان Harsi"
-      });
-      return { fileName };
+      if (result?.cancelled) return { cancelled: true };
+      return { fileName: result?.fileName || fileName, uri: result?.uri || null };
     },
     async restoreBackup(jsonString) {
       if (running) throw new Error("هنگام اجرای اسکن نمی‌توان بانک را بازیابی کرد.");
@@ -188,7 +178,6 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     }
   };
 }
-
 
 if (Capacitor.isNativePlatform()) {
   window.localHarsiReady = startAndroidLocalApp({
