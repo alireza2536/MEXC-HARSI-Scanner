@@ -26,14 +26,14 @@ let activity = fs.readFileSync(activityPath, "utf8");
 if (!activity.includes("BackgroundScanPlugin.class")) {
   activity = activity.replace(
     /import com\.getcapacitor\.BridgeActivity;\s*/,
-    "import com.getcapacitor.BridgeActivity;\\nimport android.os.Bundle;\\n"
+    "import com.getcapacitor.BridgeActivity;\nimport android.os.Bundle;\n"
   );
   activity = activity.replace(
     /public class MainActivity extends BridgeActivity\s*\{\s*\}/,
-    "public class MainActivity extends BridgeActivity {\\n" +
-    "    @Override\\n    public void onCreate(Bundle savedInstanceState) {\\n" +
-    "        registerPlugin(BackgroundScanPlugin.class);\\n" +
-    "        super.onCreate(savedInstanceState);\\n    }\\n}"
+    "public class MainActivity extends BridgeActivity {\n" +
+    "    @Override\n    public void onCreate(Bundle savedInstanceState) {\n" +
+    "        registerPlugin(BackgroundScanPlugin.class);\n" +
+    "        super.onCreate(savedInstanceState);\n    }\n}"
   );
   if (!activity.includes("BackgroundScanPlugin.class")) {
     throw new Error("Could not patch the generated MainActivity.java safely.");
@@ -49,12 +49,12 @@ const permissions = [
   '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
 ];
 for (const permission of permissions) {
-  if (!manifest.includes(permission)) manifest = manifest.replace("<application", permission + "\\n    <application");
+  if (!manifest.includes(permission)) manifest = manifest.replace("<application", permission + "\n    <application");
 }
 if (!manifest.includes("HarsiScanService")) {
   manifest = manifest.replace(
     "</application>",
-    '        <service android:name=".HarsiScanService" android:exported="false" android:foregroundServiceType="dataSync" />\\n    </application>'
+    '        <service android:name=".HarsiScanService" android:exported="false" android:foregroundServiceType="dataSync" />\n    </application>'
   );
 }
 fs.writeFileSync(manifestPath, manifest);
