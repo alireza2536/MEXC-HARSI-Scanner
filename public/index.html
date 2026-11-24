@@ -31,14 +31,32 @@
     #filterMessage{margin:10px 0 0;text-align:center;font-size:12px;color:#9fb0c7;min-height:18px}
     @media(max-width:540px){.ha-filter{padding:12px}.ha-filter-actions{grid-template-columns:1fr 1fr}}
 
-    #databaseBackupPanel[hidden]{display:none}#backupFile{display:none}#restoreDatabase{background:#26364d;color:#e5edf8;margin-top:8px}#backupStatus{min-height:22px;text-align:center;margin:10px 0 0}
+    .ha-topbar{display:flex;align-items:center;justify-content:center;position:relative;min-height:42px;margin-bottom:10px}
+    .ha-topbar h1{margin:0}
+    .ha-menu-wrap[hidden],.ha-menu[hidden]{display:none}
+    .ha-menu-wrap{position:absolute;left:0;top:0;direction:ltr}
+    .ha-menu-button{width:42px;height:42px;padding:0;border-radius:10px;background:#26364d;color:#e5edf8;font-size:28px;line-height:1}
+    .ha-menu{position:absolute;left:0;top:48px;z-index:20;width:min(270px,80vw);padding:10px;background:#172438;border:1px solid #354862;border-radius:12px;box-shadow:0 12px 30px #0008;direction:rtl}
+    .ha-menu button{margin:4px 0;padding:12px;font-size:14px}
+    #restoreDatabase{background:#26364d;color:#e5edf8}
+    #backupStatus{min-height:22px;text-align:center;margin:8px 0 0}
     @media(max-width:540px){body{padding:12px}.panel{padding:16px}.stats{gap:7px}.stat{padding:10px}.stat strong{font-size:18px}h1{font-size:19px}}
   </style>
 </head>
 <body>
 <main>
   <section class="panel">
-    <h1>اسکن لحظه‌ای MEXC</h1>
+    <div class="ha-topbar">
+      <h1>اسکن لحظه‌ای MEXC</h1>
+      <div id="appMenuWrap" class="ha-menu-wrap" hidden>
+        <button id="appMenuButton" class="ha-menu-button" type="button" aria-label="منوی برنامه" aria-expanded="false">⋮</button>
+        <div id="appMenu" class="ha-menu" hidden>
+          <button id="backupDatabase" type="button">پشتیبان‌گیری از بانک</button>
+          <button id="restoreDatabase" type="button">بازیابی از فایل پشتیبان</button>
+          <p id="backupStatus" class="muted" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
     <button id="refresh">بروزرسانی</button>
     <div id="status" class="status"><span class="dot"></span><span>آماده بروزرسانی</span></div>
     <p id="message" class="muted" aria-live="polite" style="text-align:center">برای شروع اسکن، دکمه بروزرسانی را بزنید.</p>
@@ -65,14 +83,6 @@
       <table style="min-width:0"><thead><tr><th>مقدار <button id="haSort" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی صعودی" title="مرتب‌سازی صعودی">↑</button></th><th>نام ارز</th></tr></thead>
       <tbody id="rows"><tr><td colspan="2" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
-  </section>
-  <section id="databaseBackupPanel" class="panel" hidden>
-    <h2 style="font-size:18px;margin:0 0 8px">پشتیبان بانک اطلاعاتی</h2>
-    <p class="muted">اندروید با حذف برنامه، بانک داخلی را پاک می‌کند. برای باقی‌ماندن تاریخچه، قبل از حذف برنامه فایل پشتیبان بساز و در «Files»، حافظه گوشی یا فضای ابری ذخیره کن. پس از نصب دوباره می‌توانی همان فایل را بازیابی کنی.</p>
-    <button id="backupDatabase" type="button">ساخت فایل پشتیبان بانک</button>
-    <button id="restoreDatabase" type="button">بازیابی بانک از فایل پشتیبان</button>
-    <input id="backupFile" type="file" accept=".json,application/json">
-    <p id="backupStatus" class="muted" aria-live="polite"></p>
   </section>
 </main>
 <script>
@@ -191,15 +201,20 @@ function render(job){
 }
 window.localHarsiRender=render;
 const nativeApp=Boolean(window.Capacitor?.isNativePlatform?.());
-const backupPanel=document.getElementById("databaseBackupPanel");
+const menuWrap=document.getElementById("appMenuWrap");
+const menuButton=document.getElementById("appMenuButton");
+const appMenu=document.getElementById("appMenu");
 const backupButton=document.getElementById("backupDatabase");
 const restoreButton=document.getElementById("restoreDatabase");
-const backupFile=document.getElementById("backupFile");
 const backupStatus=document.getElementById("backupStatus");
 if(nativeApp){
-  backupPanel.hidden=false;
+  menuWrap.hidden=false;
+  menuButton.addEventListener("click",()=>{
+    appMenu.hidden=!appMenu.hidden;
+    menuButton.setAttribute("aria-expanded",String(!appMenu.hidden));
+  });
   backupButton.addEventListener("click",async()=>{
-    backupButton.disabled=true;backupStatus.textContent="در حال ساخت فایل پشتیبان...";
+    backupButton.disabled=true;backupStatus.textContent="در حال آماده‌سازی فایل پشتیبان...";
     try{
       const bridge=await window.localHarsiReady;
       const result=await bridge.createBackup();
@@ -209,20 +224,22 @@ if(nativeApp){
     }catch(error){backupStatus.textContent="ساخت پشتیبان ناموفق بود: "+(error.message||String(error));}
     finally{backupButton.disabled=false;}
   });
-  restoreButton.addEventListener("click",()=>backupFile.click());
-  backupFile.addEventListener("change",async()=>{
-    const file=backupFile.files?.[0];
-    if(!file)return;
-    if(!confirm("با بازیابی، بانک فعلی با اطلاعات فایل پشتیبان جایگزین می‌شود. ادامه می‌دهی؟")){backupFile.value="";return;}
-    restoreButton.disabled=true;backupStatus.textContent="در حال بررسی و بازیابی بانک...";
+  restoreButton.addEventListener("click",async()=>{
+    restoreButton.disabled=true;backupStatus.textContent="لطفاً فایل پشتیبان را انتخاب کنید...";
     try{
-      const content=await file.text();
       const bridge=await window.localHarsiReady;
+      const picked=await bridge.chooseBackupFile();
+      if(picked?.cancelled){backupStatus.textContent="انتخاب فایل بازیابی لغو شد؛ بانک فعلی تغییری نکرد.";return;}
+      if(!confirm("با بازیابی، بانک فعلی با اطلاعات فایل پشتیبان جایگزین می‌شود. فقط در صورت اطمینان ادامه بده. آیا تأیید می‌کنی؟")) {
+        backupStatus.textContent="بازیابی لغو شد؛ بانک فعلی بدون تغییر باقی ماند.";return;
+      }
+      backupStatus.textContent="در حال بررسی و بازیابی بانک...";
+      const content=await bridge.readBackupFile(picked.uri);
       const result=await bridge.restoreBackup(content);
       render(bridge.getStatus());
       backupStatus.textContent="بازیابی با موفقیت انجام شد. تعداد ردیف‌های HARSI: "+result.results;
     }catch(error){backupStatus.textContent="بازیابی ناموفق بود: "+(error.message||String(error));}
-    finally{restoreButton.disabled=false;backupFile.value="";}
+    finally{restoreButton.disabled=false;}
   });
 }
 async function refreshStatus(){
