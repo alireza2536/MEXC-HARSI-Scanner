@@ -139,12 +139,17 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     async refreshNow() {
       if (running) return getStatus();
       await BackgroundScan.requestNotificationPermission();
-      await BackgroundScan.start();
+      let serviceStarted = false;
       try {
+        await BackgroundScan.start();
+        serviceStarted = true;
         await runScan();
         return getStatus();
       } finally {
-        await BackgroundScan.stop();
+        // Always close the foreground service, including scan failures and
+        // unexpected exceptions. A failed coin is already logged by the worker
+        // and does not prevent the remaining contracts from being processed.
+        if (serviceStarted) await BackgroundScan.stop().catch(() => {});
       }
     }
   };
