@@ -1,4 +1,6 @@
 import { Capacitor } from "@capacitor/core";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { App } from "@capacitor/app";
 import { CapacitorSQLite, SQLiteConnection } from "@capacitor-community/sqlite";
 import { config } from "../src/config.js";
@@ -20,16 +22,22 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
   }
 
   const sqlite = new SQLiteConnection(CapacitorSQLite);
-  await sqlite.checkConnectionsConsistency();
-  const connectionStatus = await sqlite.isConnection(DATABASE_NAME, false);
-  const db = connectionStatus.result
-    ? await sqlite.retrieveConnection(DATABASE_NAME, false)
-    : await sqlite.createConnection(DATABASE_NAME, false, "no-encryption", 1, false);
-  const isOpen = await db.isDBOpen();
-  if (!isOpen.result) await db.open();
+  let db = null;
+  let store = null;
 
-  const store = createLocalSqliteStore(db);
-  await store.initialize();
+  async function openStore() {
+    await sqlite.checkConnectionsConsistency();
+    const connectionStatus = await sqlite.isConnection(DATABASE_NAME, false);
+    db = connectionStatus.result
+      ? await sqlite.retrieveConnection(DATABASE_NAME, false)
+      : await sqlite.createConnection(DATABASE_NAME, false, "no-encryption", 1, false);
+    const isOpen = await db.isDBOpen();
+    if (!isOpen.result) await db.open();
+    store = createLocalSqliteStore(db);
+    await store.initialize();
+  }
+
+  await openStore();
   let isForeground = false;
   let running = false;
   let timer = null;
@@ -39,24 +47,31 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
   let activeJob = "idle";
   let completedAt = null;
 
-  const savedRows = await store.getLatestHarsiResults(2000);
-  if (savedRows.length) {
-    lastSummary = {
-      eligibleContracts: savedRows.length,
-      updatedContracts: savedRows.length,
-      failedContracts: 0,
-      historyCacheHits: 0,
-      historyBackfills: 0,
-      candleOpenTime: savedRows[0].open_time,
-      completedAt: savedRows[0].close_time,
-      results: savedRows.map((row) => ({
-        symbol: row.symbol,
-        haClose: row.ha_close === null || row.ha_close === undefined ? null : Number(row.ha_close),
-        candleOpenTime: row.open_time
-      }))
-    };
-    completedAt = lastSummary.completedAt;
+  async function loadSavedRows() {
+    const savedRows = await store.getLatestHarsiResults(2000);
+    if (savedRows.length) {
+      lastSummary = {
+        eligibleContracts: savedRows.length,
+        updatedContracts: savedRows.length,
+        failedContracts: 0,
+        historyCacheHits: 0,
+        historyBackfills: 0,
+        candleOpenTime: savedRows[0].open_time,
+        completedAt: savedRows[0].close_time,
+        results: savedRows.map((row) => ({
+          symbol: row.symbol,
+          haClose: row.ha_close === null || row.ha_close === undefined ? null : Number(row.ha_close),
+          candleOpenTime: row.open_time
+        }))
+      };
+      completedAt = lastSummary.completedAt;
+    } else {
+      lastSummary = null;
+      completedAt = null;
+    }
   }
+
+  await loadSavedRows();
 
 
   function getStatus() {
@@ -153,6 +168,51 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
 
   return {
     getStatus,
+    async createBackup() {
+      if (running) throw new Error("لطفاً تا پایان اسکن صبر کن و دوباره پشتیبان بگیر.");
+      const exported = await db.exportToJson("full");
+      const backup = {
+        ...exported,
+        database: DATABASE_NAME,
+        mode: "full",
+        overwrite: true,
+        backupCreatedAt: new Date().toISOString(),
+        backupFormat: "harsi-local-sqlite-v1"
+      };
+      const fileName = "harsi-backup-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+      const file = await Filesystem.writeFile({
+        path: fileName,
+        data: JSON.stringify(backup),
+        directory: Directory.Cache,
+        encoding: Encoding.UTF8
+      });
+      await Share.share({
+        title: "پشتیبان بانک Harsi",
+        text: "فایل پشتیبان بانک اطلاعاتی Harsi",
+        files: [file.uri],
+        dialogTitle: "ذخیره فایل پشتیبان Harsi"
+      });
+      return { fileName };
+    },
+    async restoreBackup(jsonString) {
+      if (running) throw new Error("هنگام اجرای اسکن نمی‌توان بانک را بازیابی کرد.");
+      let backup;
+      try { backup = JSON.parse(jsonString); }
+      catch { throw new Error("فایل انتخاب‌شده JSON معتبر نیست."); }
+      if (!backup || backup.database !== DATABASE_NAME || !Array.isArray(backup.tables) || !backup.tables.length) {
+        throw new Error("این فایل، پشتیبان معتبر بانک Harsi نیست.");
+      }
+      backup.mode = "full";
+      backup.overwrite = true;
+      await sqlite.closeConnection(DATABASE_NAME, false);
+      await sqlite.importFromJson(JSON.stringify(backup));
+      await openStore();
+      await loadSavedRows();
+      activeJob = "completed";
+      lastError = null;
+      publish();
+      return { results: lastSummary?.results?.length || 0 };
+    },
     async refreshNow() {
       if (!isForeground) throw new Error("برای اسکن، برنامه باید در پیش‌زمینه باز باشد.");
       clearScheduledScan();
