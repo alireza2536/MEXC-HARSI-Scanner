@@ -71,3 +71,29 @@ test("local scanner requires explicit maxPrice to preserve active eligibility se
     /maxPrice/
   );
 });
+
+
+test("local scanner aborts before opening or writing when app is backgrounded", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let initialized = false;
+  const store = {
+    async initialize() { initialized = true; }
+  };
+  const mexc = {
+    async getServerTimeMs() { return NOW_MS; },
+    async getEligibleUsdtContracts() { return []; },
+    async get15mCandles() { return []; }
+  };
+
+  await assert.rejects(
+    runLocalHarsiScan({
+      mexc,
+      store,
+      maxPrice: 30,
+      signal: controller.signal
+    }),
+    { name: "AbortError" }
+  );
+  assert.equal(initialized, false);
+});
