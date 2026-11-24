@@ -27,13 +27,44 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       : await sqlite.createConnection(DATABASE_NAME, false, "no-encryption", 1, false);
     const isOpen = await db.isDBOpen();
     if (!isOpen.result) await db.open();
+    // Give SQLite time to wait for short-lived readers/writers instead of
+    // failing immediately with SQLITE_BUSY / SQLITE_LOCKED.
+    await db.execute("PRAGMA busy_timeout = 10000;");
     store = createLocalSqliteStore(db);
     await store.initialize();
   }
 
   await openStore();
   let running = false;
+  let backupRunning = false;
   let controller = null;
+
+  function isSqliteBusy(error) {
+    const message = String(error?.message || error || "").toLowerCase();
+    return message.includes("database is locked")
+      || message.includes("database is busy")
+      || message.includes("sqlite_busy")
+      || message.includes("sqlite_locked")
+      || message.includes("code 5")
+      || message.includes("code 6");
+  }
+
+  async function exportDatabaseWithRetry(maxAttempts = 5) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await db.exportToJson("full");
+      } catch (error) {
+        lastError = error;
+        if (!isSqliteBusy(error) || attempt === maxAttempts) throw error;
+        // Allow any short-lived SQLite reader/writer to release its lock.
+        await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+        const openState = await db.isDBOpen();
+        if (!openState.result) await db.open();
+      }
+    }
+    throw lastError;
+  }
   let lastSummary = null;
   let lastError = null;
   let activeJob = "idle";
@@ -129,44 +160,52 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     getStatus,
     async createBackup() {
       if (running) throw new Error("لطفاً تا پایان اسکن صبر کن و دوباره پشتیبان بگیر.");
-      const fileName = "harsi-backup-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
-      const destination = await HarsiBackupPicker.chooseDestination({ fileName });
-      if (destination?.cancelled) return { cancelled: true };
-      const exported = await db.exportToJson("full");
-      // Capacitor SQLite wraps the actual JsonSQLite payload in { export: ... }.
-      // Normalize that shape before adding Harsi metadata.
-      const databaseExport = exported?.export ?? exported;
-      if (!databaseExport || !Array.isArray(databaseExport.tables) || databaseExport.tables.length === 0) {
-        throw new Error("خروجی SQLite فاقد جدول‌های بانک است؛ فایل ذخیره نشد.");
-      }
-      const exportedRows = databaseExport.tables.reduce(
-        (total, table) => total + (Array.isArray(table.values) ? table.values.length : 0),
-        0
-      );
-      if (exportedRows === 0) {
-        throw new Error("خروجی SQLite هیچ ردیف اطلاعاتی ندارد؛ فایل ذخیره نشد.");
-      }
-      const backup = {
-        ...databaseExport,
-        database: DATABASE_NAME,
-        mode: "full",
-        overwrite: true,
-        backupCreatedAt: new Date().toISOString(),
-        backupFormat: "harsi-local-sqlite-v1",
-        backupValidation: {
-          tableCount: databaseExport.tables.length,
-          rowCount: exportedRows
+      if (backupRunning) throw new Error("تهیه پشتیبان دیگری در حال انجام است؛ لطفاً صبر کن.");
+      backupRunning = true;
+      try {
+        const fileName = "harsi-backup-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+        const destination = await HarsiBackupPicker.chooseDestination({ fileName });
+        if (destination?.cancelled) return { cancelled: true };
+        // Recheck after the Android file picker returns to avoid racing a scan.
+        if (running) throw new Error("اسکن شروع شده است؛ پس از پایان اسکن دوباره پشتیبان بگیر.");
+        const exported = await exportDatabaseWithRetry();
+        // Capacitor SQLite wraps the actual JsonSQLite payload in { export: ... }.
+        // Normalize that shape before adding Harsi metadata.
+        const databaseExport = exported?.export ?? exported;
+        if (!databaseExport || !Array.isArray(databaseExport.tables) || databaseExport.tables.length === 0) {
+          throw new Error("خروجی SQLite فاقد جدول‌های بانک است؛ فایل ذخیره نشد.");
         }
-      };
-      const backupJson = JSON.stringify(backup);
-      if (backupJson.length < 10000) {
-        throw new Error("حجم خروجی پشتیبان غیرعادی کم است؛ برای حفظ اطلاعات فایل ذخیره نشد.");
+        const exportedRows = databaseExport.tables.reduce(
+          (total, table) => total + (Array.isArray(table.values) ? table.values.length : 0),
+          0
+        );
+        if (exportedRows === 0) {
+          throw new Error("خروجی SQLite هیچ ردیف اطلاعاتی ندارد؛ فایل ذخیره نشد.");
+        }
+        const backup = {
+          ...databaseExport,
+          database: DATABASE_NAME,
+          mode: "full",
+          overwrite: true,
+          backupCreatedAt: new Date().toISOString(),
+          backupFormat: "harsi-local-sqlite-v1",
+          backupValidation: {
+            tableCount: databaseExport.tables.length,
+            rowCount: exportedRows
+          }
+        };
+        const backupJson = JSON.stringify(backup);
+        if (backupJson.length < 10000) {
+          throw new Error("حجم خروجی پشتیبان غیرعادی کم است؛ برای حفظ اطلاعات فایل ذخیره نشد.");
+        }
+        await HarsiBackupPicker.writeJson({
+          uri: destination.uri,
+          data: backupJson
+        });
+        return { fileName: destination.fileName || fileName, uri: destination.uri };
+      } finally {
+        backupRunning = false;
       }
-      await HarsiBackupPicker.writeJson({
-        uri: destination.uri,
-        data: backupJson
-      });
-      return { fileName: destination.fileName || fileName, uri: destination.uri };
     },
     async chooseBackupFile() {
       return HarsiBackupPicker.chooseBackupFile();
