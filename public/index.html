@@ -11,7 +11,10 @@
     main{max-width:900px;margin:0 auto}.panel{background:#111c2d;border:1px solid #26364d;border-radius:18px;padding:22px;margin:16px 0;box-shadow:0 12px 35px #0003}
     h1{font-size:22px;margin:0 0 10px;text-align:center}.muted{color:#9fb0c7;font-size:14px;line-height:1.9}
     button{width:100%;border:0;border-radius:12px;padding:15px 18px;font-size:16px;font-weight:700;color:#061321;background:#60d5b2;cursor:pointer}
-    button:disabled{opacity:.55;cursor:not-allowed}.progress-track{height:9px;margin:18px 0 9px;background:#26364d;border-radius:999px;overflow:hidden}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    #refresh,#applyFilter{color:#fff;background:#1E3A8A}
+    #refresh.is-cancel,#applyFilter.is-remove{background:#9F1239}
+    .progress-track{height:9px;margin:18px 0 9px;background:#26364d;border-radius:999px;overflow:hidden}
     .progress-fill{height:100%;width:0;background:#16a36a;border-radius:999px;transition:width .25s ease}
     .progress-details{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:15px}
     #message{margin:0;color:#e5edf8;text-align:right;font-size:15px}
@@ -149,6 +152,7 @@ applyFilterButton.addEventListener("click",()=>{
   if(activeRange){
     activeRange=null;filterFrom.value="";filterTo.value="";
     applyFilterButton.textContent="فیلتر";
+    applyFilterButton.classList.remove("is-remove");
     applyFilterButton.setAttribute("aria-label","فیلتر");
     renderRows();
     return;
@@ -165,6 +169,7 @@ applyFilterButton.addEventListener("click",()=>{
   }
   activeRange={min:Math.min(from,to),max:Math.max(from,to)};
   applyFilterButton.textContent="حذف فیلتر";
+  applyFilterButton.classList.add("is-remove");
   applyFilterButton.setAttribute("aria-label","حذف فیلتر");
   renderRows();
 });
@@ -172,6 +177,7 @@ function render(job){
   const summary=job.summary;
   button.disabled=false;
   button.textContent=job.status==="running"?"لغو بروزرسانی":"بروزرسانی";
+  button.classList.toggle("is-cancel",job.status==="running");
   button.setAttribute("aria-label",button.textContent);
   let processed=0,total=0,failed=0;
   if(job.progress){
