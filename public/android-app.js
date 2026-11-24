@@ -147,6 +147,13 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       });
       return { fileName: destination.fileName || fileName, uri: destination.uri };
     },
+    async chooseBackupFile() {
+      return HarsiBackupPicker.chooseBackupFile();
+    },
+    async readBackupFile(uri) {
+      const result = await HarsiBackupPicker.readJson({ uri });
+      return result.data;
+    },
     async restoreBackup(jsonString) {
       if (running) throw new Error("هنگام اجرای اسکن نمی‌توان بانک را بازیابی کرد.");
       let backup;
