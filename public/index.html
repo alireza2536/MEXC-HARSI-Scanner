@@ -202,8 +202,10 @@ if(nativeApp){
     backupButton.disabled=true;backupStatus.textContent="در حال ساخت فایل پشتیبان...";
     try{
       const bridge=await window.localHarsiReady;
-      await bridge.createBackup();
-      backupStatus.textContent="فایل آماده شد. در پنجره بازشده گزینه Files یا Drive را انتخاب و فایل را در محلی خارج از برنامه ذخیره کن.";
+      const result=await bridge.createBackup();
+      backupStatus.textContent=result?.cancelled
+        ?"ذخیره فایل پشتیبان لغو شد؛ هیچ فایلی ذخیره نشد."
+        :"فایل پشتیبان با موفقیت در محل انتخاب‌شده ذخیره شد.";
     }catch(error){backupStatus.textContent="ساخت پشتیبان ناموفق بود: "+(error.message||String(error));}
     finally{backupButton.disabled=false;}
   });
