@@ -78,7 +78,7 @@ export function createLocalSqliteStore(sqliteConnection) {
 
   async function initialize() {
     if (initialized) return;
-    await sqliteConnection.execute("PRAGMA foreign_keys = ON;");
+    await sqliteConnection.query("PRAGMA foreign_keys = ON;");
     for (const statement of SCHEMA) await sqliteConnection.execute(statement);
     initialized = true;
   }
