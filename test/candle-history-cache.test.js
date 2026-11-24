@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeCandleHistory } from "../src/candle-history-cache.js";
+import { hasCompleteCandleWindow, mergeCandleHistory } from "../src/candle-history-cache.js";
 
 function candle(openTime, closePrice) {
   return {
@@ -33,5 +33,37 @@ test("incremental candle history remains chronological and keeps only the newest
   assert.deepEqual(
     merged.map((item) => item.close_price),
     [2, 3, 4]
+  );
+});
+
+test("a cached window is accepted only when it has the exact size and expected latest candle", () => {
+  const candles = Array.from({ length: 4 }, (_, index) =>
+    candle(Date.UTC(2026, 0, 1, 0, index * 15), index)
+  );
+
+  assert.equal(
+    hasCompleteCandleWindow(candles, 4, Date.parse(candles[3].open_time), 15 * 60 * 1000),
+    true
+  );
+  assert.equal(
+    hasCompleteCandleWindow(candles.slice(1), 4, Date.parse(candles[3].open_time), 15 * 60 * 1000),
+    false
+  );
+  assert.equal(
+    hasCompleteCandleWindow(candles, 4, Date.parse(candles[3].open_time) + 15 * 60 * 1000, 15 * 60 * 1000),
+    false
+  );
+});
+
+test("a cached window with a missing interval is rejected", () => {
+  const candles = [
+    candle(Date.UTC(2026, 0, 1, 0, 0), 1),
+    candle(Date.UTC(2026, 0, 1, 0, 15), 2),
+    candle(Date.UTC(2026, 0, 1, 0, 45), 4)
+  ];
+
+  assert.equal(
+    hasCompleteCandleWindow(candles, 3, Date.parse(candles[2].open_time), 15 * 60 * 1000),
+    false
   );
 });
