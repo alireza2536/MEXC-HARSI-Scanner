@@ -49,8 +49,11 @@ async function getHistory(store, mexc, symbol, currentOpen) {
  * Foreground-only local scanner. The caller owns app lifecycle and must call
  * this function only while the Android app is active.
  */
-export async function runLocalHarsiScan({ mexc, store, nowMs, onProgress } = {}) {
+export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress } = {}) {
   if (!mexc || !store) throw new TypeError("MEXC client and local store are required.");
+  if (!Number.isFinite(maxPrice) || maxPrice <= 0) {
+    throw new TypeError("The current scanner maxPrice setting must be provided.");
+  }
   if (typeof mexc.getServerTimeMs !== "function"
       || typeof mexc.getEligibleUsdtContracts !== "function"
       || typeof mexc.get15mCandles !== "function") {
@@ -63,7 +66,7 @@ export async function runLocalHarsiScan({ mexc, store, nowMs, onProgress } = {})
   const serverNowMs = Number.isFinite(nowMs) ? nowMs : await mexc.getServerTimeMs();
   const nowSeconds = Math.floor(serverNowMs / 1000);
   const currentOpen = Math.floor(nowSeconds / CANDLE_SECONDS) * CANDLE_SECONDS;
-  const contracts = await mexc.getEligibleUsdtContracts(10);
+  const contracts = await mexc.getEligibleUsdtContracts(maxPrice);
 
   log("local_scan_started", {
     timeframe: "Min15",
