@@ -1,5 +1,9 @@
+const runtimeEnv = typeof process !== "undefined" && process.env
+  ? process.env
+  : (import.meta.env || {});
+
 const numberFromEnv = (name, fallback) => {
-  const raw = process.env[name];
+  const raw = runtimeEnv[name];
   if (raw === undefined || raw === "") return fallback;
   const value = Number(raw);
   if (!Number.isFinite(value)) throw new Error(`Invalid numeric environment variable: ${name}`);
@@ -7,8 +11,8 @@ const numberFromEnv = (name, fallback) => {
 };
 
 export const config = {
-  mexcBaseUrl: (process.env.MEXC_BASE_URL || "https://contract.mexc.com").replace(/\/$/, ""),
-  interval: process.env.TIMEFRAME || "Min15",
+  mexcBaseUrl: (runtimeEnv.MEXC_BASE_URL || runtimeEnv.VITE_MEXC_BASE_URL || "https://contract.mexc.com").replace(/\/$/, ""),
+  interval: runtimeEnv.TIMEFRAME || "Min15",
   intervalSeconds: 15 * 60,
   maxPrice: numberFromEnv("MAX_PRICE_USDT", 10),
   historyDays: numberFromEnv("HISTORY_DAYS", 3),
