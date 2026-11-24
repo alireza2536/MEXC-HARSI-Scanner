@@ -30,6 +30,24 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
 
   const store = createLocalSqliteStore(db);
   await store.initialize();
+  const savedRows = await store.getLatestHarsiResults(2000);
+  if (savedRows.length) {
+    lastSummary = {
+      eligibleContracts: savedRows.length,
+      updatedContracts: savedRows.length,
+      failedContracts: 0,
+      historyCacheHits: 0,
+      historyBackfills: 0,
+      candleOpenTime: savedRows[0].open_time,
+      completedAt: savedRows[0].close_time,
+      results: savedRows.map((row) => ({
+        symbol: row.symbol,
+        haClose: Number(row.ha_close),
+        candleOpenTime: row.open_time
+      }))
+    };
+    completedAt = lastSummary.completedAt;
+  }
 
   let isForeground = false;
   let running = false;
