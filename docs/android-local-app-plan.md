@@ -28,6 +28,16 @@ Use Capacitor to package the existing web UI as a private Android application. K
 
 The local scanner should use the same contract discovery, candle normalization, request spacing/retry behavior, candle-window validation, and HARSI calculation as the current live scanner. Persistence should retain the latest 2,000 closed candles plus the currently forming candle per symbol, and keep HARSI result rows for seven days. Any necessary adaptations must be verified by parity tests before they are accepted.
 
+## Implementation status on `android/local-harsi-app`
+
+- Added a Capacitor 8 / Vite build configuration and a workflow that generates an Android project and builds a debug APK artifact.
+- Added a native SQLite repository using `@capacitor-community/sqlite`, with transactional batched writes, latest 2,000 closed candles plus the forming candle, and seven-day HARSI retention.
+- Added a local scanner orchestration module that reuses `MexcClient`, `hasCompleteCandleWindow`, and the unchanged `calculateHarsi` function.
+- Added Android foreground lifecycle handling: start a scan when the app becomes active, align subsequent scans to 15-minute candle boundaries, and cancel/stop scheduling when the app goes to the background.
+- Added restoration of the latest saved HARSI value per symbol from local SQLite when the app opens.
+- Added tests for the local scanner and SQLite repository. The latest PR-check run should be used as the authoritative test result.
+- APK generation is automated, but installation on the target Samsung phone and Render-vs-Android value parity are still pending. No APK should be treated as production-ready before those checks.
+
 ## Delivery phases
 1. Add Android packaging and local runtime scaffolding on this branch only.
 2. Implement SQLite schema/repository and migrate live-scan persistence from PostgreSQL to the local store without changing calculation logic.
