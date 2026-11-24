@@ -159,7 +159,9 @@ function render(job){
   const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد",paused:"اسکن متوقف شد"};
   statusEl.lastElementChild.textContent=labels[job.status]||"وضعیت نامشخص";
   const summary=job.summary;
-  button.disabled=job.status==="running";
+  button.disabled=false;
+  button.textContent=job.status==="running"?"لغو بروزرسانی":"بروزرسانی";
+  button.setAttribute("aria-label",button.textContent);
   if(job.progress){
     latestProgress=job.progress;
     document.getElementById("eligible").textContent=fmt(job.progress.total);
@@ -198,13 +200,19 @@ async function refreshStatus(){
 }
 
 button.addEventListener("click",async()=>{
-  button.disabled=true;errorEl.textContent="";
+  errorEl.textContent="";
   try{
     if(nativeApp){
       const bridge=await window.localHarsiReady;
+      if(bridge.getStatus().status==="running"){
+        await bridge.cancelNow();
+        return;
+      }
+      button.disabled=true;
       render(await bridge.refreshNow());
       return;
     }
+    button.disabled=true;
     const response=await fetch("/api/refresh",{method:"POST"});
     const data=await response.json();
     if(!response.ok) throw new Error(data.error||"شروع بروزرسانی ناموفق بود.");
