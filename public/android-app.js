@@ -133,17 +133,38 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       const destination = await HarsiBackupPicker.chooseDestination({ fileName });
       if (destination?.cancelled) return { cancelled: true };
       const exported = await db.exportToJson("full");
+      // Capacitor SQLite wraps the actual JsonSQLite payload in { export: ... }.
+      // Normalize that shape before adding Harsi metadata.
+      const databaseExport = exported?.export ?? exported;
+      if (!databaseExport || !Array.isArray(databaseExport.tables) || databaseExport.tables.length === 0) {
+        throw new Error("خروجی SQLite فاقد جدول‌های بانک است؛ فایل ذخیره نشد.");
+      }
+      const exportedRows = databaseExport.tables.reduce(
+        (total, table) => total + (Array.isArray(table.values) ? table.values.length : 0),
+        0
+      );
+      if (exportedRows === 0) {
+        throw new Error("خروجی SQLite هیچ ردیف اطلاعاتی ندارد؛ فایل ذخیره نشد.");
+      }
       const backup = {
-        ...exported,
+        ...databaseExport,
         database: DATABASE_NAME,
         mode: "full",
         overwrite: true,
         backupCreatedAt: new Date().toISOString(),
-        backupFormat: "harsi-local-sqlite-v1"
+        backupFormat: "harsi-local-sqlite-v1",
+        backupValidation: {
+          tableCount: databaseExport.tables.length,
+          rowCount: exportedRows
+        }
       };
+      const backupJson = JSON.stringify(backup);
+      if (backupJson.length < 10000) {
+        throw new Error("حجم خروجی پشتیبان غیرعادی کم است؛ برای حفظ اطلاعات فایل ذخیره نشد.");
+      }
       await HarsiBackupPicker.writeJson({
         uri: destination.uri,
-        data: JSON.stringify(backup)
+        data: backupJson
       });
       return { fileName: destination.fileName || fileName, uri: destination.uri };
     },
