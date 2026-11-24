@@ -28,7 +28,8 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     if (!isOpen.result) await db.open();
     // Give SQLite time to wait for short-lived readers/writers instead of
     // failing immediately with SQLITE_BUSY / SQLITE_LOCKED.
-    await db.execute("PRAGMA busy_timeout = 10000;");
+    // PRAGMA busy_timeout returns a row on Android, so it must use query/rawQuery, not execute.
+    await db.query("PRAGMA busy_timeout = 10000;");
     store = createLocalSqliteStore(db);
     await store.initialize();
   }
