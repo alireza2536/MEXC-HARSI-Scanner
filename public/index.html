@@ -13,6 +13,10 @@
     button{width:100%;border:0;border-radius:12px;padding:15px 18px;font-size:16px;font-weight:700;color:#061321;background:#60d5b2;cursor:pointer}
     button:disabled{opacity:.55;cursor:not-allowed}
     #refresh,#applyFilter{color:#fff;background:#1E3A8A}
+    .timeframe-picker{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+    .timeframe-picker button{background:#26364d;color:#e5edf8;border:1px solid #40536d}
+    .timeframe-picker button.active{background:#1E3A8A;border-color:#1E3A8A;color:#fff}
+    .timeframe-picker button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
     #refresh.is-cancel,#applyFilter.is-remove{background:#9F1239}
     .progress-track{height:9px;margin:18px 0 9px;background:#26364d;border-radius:999px;overflow:hidden}
     .progress-fill{height:100%;width:0;background:#16a36a;border-radius:999px;transition:width .25s ease}
@@ -45,6 +49,10 @@
       <h1>اسکن لحظه‌ای MEXC</h1>
       </div>
     </div>
+    <div class="timeframe-picker" aria-label="انتخاب تایم‌فریم">
+      <button id="timeframe1m" type="button" class="active" aria-pressed="true">۱ دقیقه ✓</button>
+      <button id="timeframe15m" type="button" class="active" aria-pressed="true">۱۵ دقیقه ✓</button>
+    </div>
     <button id="refresh">بروزرسانی</button>
     <div class="progress-track" role="progressbar" aria-label="میزان پردازش" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <div id="progressFill" class="progress-fill"></div>
@@ -74,6 +82,19 @@
 </main>
 <script>
 const button=document.getElementById("refresh");
+const timeframe1m=document.getElementById("timeframe1m");
+const timeframe15m=document.getElementById("timeframe15m");
+const selectedTimeframes=new Set(["Min1","Min15"]);
+function updateTimeframeButtons(){
+  for(const [element,value,label] of [[timeframe1m,"Min1","۱ دقیقه"],[timeframe15m,"Min15","۱۵ دقیقه"]]){
+    const active=selectedTimeframes.has(value);
+    element.classList.toggle("active",active);
+    element.setAttribute("aria-pressed",String(active));
+    element.textContent=label+(active?" ✓":"");
+  }
+}
+timeframe1m.addEventListener("click",()=>{selectedTimeframes.has("Min1")?selectedTimeframes.delete("Min1"):selectedTimeframes.add("Min1");updateTimeframeButtons();});
+timeframe15m.addEventListener("click",()=>{selectedTimeframes.has("Min15")?selectedTimeframes.delete("Min15"):selectedTimeframes.add("Min15");updateTimeframeButtons();});
 const message=document.getElementById("message");
 const progressTrack=document.querySelector(".progress-track");
 const progressFill=document.getElementById("progressFill");
@@ -116,7 +137,7 @@ function renderRows(){
   });
   for(const item of results){
     const tr=document.createElement("tr");
-    for(const value of [fmtHa(item.haClose),String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"")]){
+    for(const value of [fmtHa(item.haClose),String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"")+(item.timeframe?` (${item.timeframe==="Min1"?"۱ دقیقه":"۱۵ دقیقه"})`:"")]){
       const td=document.createElement("td");td.textContent=value;tr.append(td);
     }
     rows.append(tr);
@@ -220,13 +241,14 @@ button.addEventListener("click",async()=>{
   errorEl.textContent="";
   try{
     if(nativeApp){
+      if(selectedTimeframes.size===0) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
       const bridge=await window.localHarsiReady;
       if(bridge.getStatus().status==="running"){
         await bridge.cancelNow();
         return;
       }
       button.disabled=true;
-      render(await bridge.refreshNow());
+      render(await bridge.refreshNow([...selectedTimeframes]));
       return;
     }
     button.disabled=true;
