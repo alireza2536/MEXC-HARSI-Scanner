@@ -347,7 +347,14 @@ function render(job){
 }
 window.localHarsiRender=render;
 const nativeApp=Boolean(window.Capacitor?.isNativePlatform?.());
+const desktopApp=Boolean(window.harsiDesktop);
+if(desktopApp) window.harsiDesktop.onStatus(render);
 async function refreshStatus(){
+  if(desktopApp){
+    try{render(await window.harsiDesktop.getStatus());}
+    catch{message.textContent="ارتباط با برنامه برقرار نشد.";}
+    return;
+  }
   if(nativeApp){
     if(window.localHarsiBridge) render(window.localHarsiBridge.getStatus());
     return;
@@ -359,6 +366,17 @@ async function refreshStatus(){
 button.addEventListener("click",async()=>{
   errorEl.textContent="";
   try{
+    if(desktopApp){
+      const bridge=window.harsiDesktop;
+      if((await bridge.getStatus()).status==="running"){
+        await bridge.cancelNow();
+        return;
+      }
+      if(selectedTimeframes.size===0) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
+      button.disabled=true;
+      render(await bridge.refreshNow([...selectedTimeframes]));
+      return;
+    }
     if(nativeApp){
       const bridge=await window.localHarsiReady;
       if(bridge.getStatus().status==="running"){
