@@ -49,6 +49,15 @@
     .export-menu[hidden]{display:none}
     .export-menu button{display:block;width:100%;padding:12px 14px;margin:2px 0;text-align:right;background:transparent;color:#e5edf8;border-radius:8px;font-size:13px}
     .export-menu button:hover{background:#26364d}
+    .save-name-backdrop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;background:#0009}
+    .save-name-backdrop[hidden]{display:none}
+    .save-name-dialog{width:min(100%,360px);padding:18px;background:#172438;border:1px solid #40536d;border-radius:16px;box-shadow:0 18px 48px #0009}
+    .save-name-dialog h2{margin:0 0 14px;font-size:17px;text-align:right}
+    .save-name-dialog input{width:100%;padding:12px;background:#0b1422;color:#e5edf8;border:1px solid #40536d;border-radius:10px;font:inherit;text-align:right;direction:auto}
+    .save-name-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+    .save-name-actions button{padding:11px;font-size:14px}
+    #confirmSaveName{background:#1E3A8A;color:#fff}
+    #cancelSaveName{background:#26364d;color:#e5edf8;border:1px solid #40536d}
     @media(max-width:540px){.ha-filter{padding:12px}}
 
     .ha-topbar{display:flex;align-items:center;justify-content:center;position:relative;min-height:42px;margin-bottom:10px}
@@ -106,6 +115,16 @@
       <button id="exportMenuToggle" type="button" aria-label="منوی خروجی" title="منوی خروجی" aria-expanded="false" aria-controls="exportMenu">⋮</button>
       <div id="exportMenu" class="export-menu" hidden>
         <button id="exportFiltered" type="button">ذخیره نتایج فیلترشده</button>
+      </div>
+    </div>
+    <div id="saveNameBackdrop" class="save-name-backdrop" hidden>
+      <div class="save-name-dialog" role="dialog" aria-modal="true" aria-labelledby="saveNameTitle">
+        <h2 id="saveNameTitle">نام فایل خروجی</h2>
+        <input id="saveFileName" type="text" autocomplete="off" maxlength="100" aria-label="نام فایل">
+        <div class="save-name-actions">
+          <button id="confirmSaveName" type="button">ذخیره</button>
+          <button id="cancelSaveName" type="button">انصراف</button>
+        </div>
       </div>
     </div>
     <div class="table-wrap">
@@ -285,7 +304,7 @@ function getExportRows(filteredOnly){
     return direction==="asc"?difference:-difference;
   });
 }
-async function exportResults(filteredOnly){
+async function exportResults(filteredOnly, chosenName){
   const visibleTimeframes=["Min1","Min15"].filter(timeframe=>selectedTimeframes.has(timeframe));
   if(!visibleTimeframes.length){
     filterMessage.textContent="برای خروجی گرفتن حداقل یک تایم‌فریم را انتخاب کنید.";
@@ -302,7 +321,8 @@ async function exportResults(filteredOnly){
   ].join("\t"))];
   const content="\uFEFF"+lines.join("\r\n")+"\r\n";
   const stamp=new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
-  const fileName="Harsi-"+(filteredOnly?"filtered":"all")+"-"+stamp+".txt";
+  const baseName=String(chosenName||("Harsi-"+(filteredOnly?"filtered":"all")+"-"+stamp)).trim().replace(/[\\\\/:*?"<>|]/g,"-").replace(/\\.txt$/i,"").slice(0,100);
+  const fileName=(baseName||("Harsi-filtered-"+stamp))+".txt";
   try{
     if(window.harsiDesktop?.exportText){
       const result=await window.harsiDesktop.exportText(content,fileName);
@@ -334,7 +354,28 @@ document.addEventListener("click",event=>{
   if(!event.target.closest(".export-menu-wrap"))closeExportMenu();
 });
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeExportMenu();});
-document.getElementById("exportFiltered").addEventListener("click",()=>{closeExportMenu();exportResults(true);});
+const saveNameBackdrop=document.getElementById("saveNameBackdrop");
+const saveFileName=document.getElementById("saveFileName");
+function openSaveNameDialog(){
+  const stamp=new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
+  saveFileName.value="Harsi-filtered-"+stamp;
+  saveNameBackdrop.hidden=false;
+  setTimeout(()=>{saveFileName.focus();saveFileName.select();},0);
+}
+function closeSaveNameDialog(){saveNameBackdrop.hidden=true;}
+document.getElementById("exportFiltered").addEventListener("click",()=>{closeExportMenu();openSaveNameDialog();});
+document.getElementById("cancelSaveName").addEventListener("click",closeSaveNameDialog);
+saveNameBackdrop.addEventListener("click",event=>{if(event.target===saveNameBackdrop)closeSaveNameDialog();});
+document.getElementById("confirmSaveName").addEventListener("click",async()=>{
+  const name=saveFileName.value.trim();
+  if(!name){saveFileName.focus();return;}
+  closeSaveNameDialog();
+  await exportResults(true,name);
+});
+saveFileName.addEventListener("keydown",event=>{
+  if(event.key==="Enter")document.getElementById("confirmSaveName").click();
+  if(event.key==="Escape")closeSaveNameDialog();
+});
 
 function updateSortButton(button,timeframe){
   const direction=sortDirections[timeframe];
