@@ -148,6 +148,8 @@ const timeframe15m=document.getElementById("timeframe15m");
 const timeframe1h=document.getElementById("timeframe1h");
 const selectedTimeframes=new Set();
 const filterTimeframes=new Set();
+let activeVwapTimeframe="Min15";
+const timeframeShortLabel={Min1:"1m",Min15:"15m",Min60:"1h"};
 function resetActiveFilter(){
   activeRanges=null;
   applyFilterButton.textContent="فیلتر";
@@ -155,8 +157,15 @@ function resetActiveFilter(){
   applyFilterButton.setAttribute("aria-label","فیلتر");
 }
 function toggleTimeframe(value){
-  if(selectedTimeframes.has(value)) selectedTimeframes.delete(value);
-  else selectedTimeframes.add(value);
+  if(selectedTimeframes.has(value)){
+    selectedTimeframes.delete(value);
+    if(activeVwapTimeframe===value){
+      activeVwapTimeframe=[...selectedTimeframes].at(-1)||"Min15";
+    }
+  }else{
+    selectedTimeframes.add(value);
+    activeVwapTimeframe=value;
+  }
   updateTimeframeButtons();
   renderRows();
 }
@@ -250,7 +259,7 @@ function groupedResults(){
     const symbol=String(item.symbol||"").trim().toUpperCase().replace(/[_-]?USDT$/i,"").replace(/[_-]/g,"");
     if(!symbol||!["Min1","Min15","Min60"].includes(item.timeframe)) continue;
     if(!bySymbol.has(symbol)) bySymbol.set(symbol,{
-      symbol,Min1:null,Min15:null,Min60:null,vwapDaily:null,vwapRolling:null
+      symbol,Min1:null,Min15:null,Min60:null,vwapDaily:null,vwapRollingByTimeframe:{Min1:null,Min15:null,Min60:null}
     });
     const row=bySymbol.get(symbol);
     const timeframe=item.timeframe;
@@ -258,16 +267,17 @@ function groupedResults(){
     if(item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)){
       row[timeframe]=value;
     }
-    // VWAP D/M use the 15-minute candle stream so 96 rolling candles = 24 hours.
-    if(timeframe==="Min15"){
-      const daily=Number(item.vwapDaily),rolling=Number(item.vwapRolling);
-      row.vwapDaily=item.vwapDaily!==null&&item.vwapDaily!==undefined&&Number.isFinite(daily)?daily:null;
-      row.vwapRolling=item.vwapRolling!==null&&item.vwapRolling!==undefined&&Number.isFinite(rolling)?rolling:null;
+    const daily=Number(item.vwapDaily),rolling=Number(item.vwapRolling);
+    if(item.vwapDaily!==null&&item.vwapDaily!==undefined&&Number.isFinite(daily)){
+      row.vwapDaily=daily;
     }
+    row.vwapRollingByTimeframe[timeframe]=
+      item.vwapRolling!==null&&item.vwapRolling!==undefined&&Number.isFinite(rolling)?rolling:null;
   }
   return [...bySymbol.values()];
 }
 function updateResultsColumns(){
+  headingVwapRolling.textContent="VWAP M ("+timeframeShortLabel[activeVwapTimeframe]+")";
   const displayTimeframes=new Set([...selectedTimeframes,...filterTimeframes]);
   const show1m=displayTimeframes.has("Min1");
   const show15m=displayTimeframes.has("Min15");
@@ -332,8 +342,9 @@ function renderRows(){
     dailyCell.title="VWAP روزانه بر اساس کندل‌های ۱۵ دقیقه‌ای";
     card.append(dailyCell);
     const rollingCell=document.createElement("span");
-    rollingCell.textContent=fmt(item.vwapRolling);
-    rollingCell.title="VWAP متحرک ۹۶ کندل ۱۵ دقیقه‌ای";
+    const rollingValue=item.vwapRollingByTimeframe[activeVwapTimeframe];
+    rollingCell.textContent=fmt(rollingValue);
+    rollingCell.title="VWAP متحرک بر اساس "+timeframeShortLabel[activeVwapTimeframe]+"؛ معادل ۲۴ ساعت";
     card.append(rollingCell);
     td.append(card);
     tr.append(td);
@@ -378,9 +389,9 @@ async function exportResults(filteredOnly, chosenName){
     filterMessage.textContent="نتیجه‌ای برای خروجی گرفتن وجود ندارد.";
     return;
   }
-  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":tf==="Min15"?"۱۵ دقیقه":"۱ ساعت"),"VWAP D","VWAP M"];
+  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":tf==="Min15"?"۱۵ دقیقه":"۱ ساعت"),"VWAP D","VWAP M ("+timeframeShortLabel[activeVwapTimeframe]+")"];
   const lines=[headings.join("\t"),...results.map(item=>[
-    item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1)),item.vwapDaily===null?"—":fmt(item.vwapDaily),item.vwapRolling===null?"—":fmt(item.vwapRolling)
+    item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1)),item.vwapDaily===null?"—":fmt(item.vwapDaily),item.vwapRollingByTimeframe[activeVwapTimeframe]===null?"—":fmt(item.vwapRollingByTimeframe[activeVwapTimeframe])
   ].join("\t"))];
   const content="\uFEFF"+lines.join("\r\n")+"\r\n";
   const stamp=new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
