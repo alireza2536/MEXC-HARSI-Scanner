@@ -3,7 +3,7 @@ import { hasCompleteCandleWindow } from "./candle-history-cache.js";
 
 const TIMEFRAME_SECONDS = Object.freeze({ Min1: 60, Min15: 900 });
 const HISTORY_CANDLES = 2000;
-const PERSISTENCE_BATCH_SIZE = 50;
+const PERSISTENCE_BATCH_SIZE = 10;
 
 function currentCandleFrom(candles, currentOpen) {
   return candles.find((candle) => Date.parse(candle.open_time) === currentOpen * 1000);
