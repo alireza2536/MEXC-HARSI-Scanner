@@ -1,5 +1,6 @@
 import { calculateHarsi } from "./harsi.js";
 import { hasCompleteCandleWindow } from "./candle-history-cache.js";
+import { calculateVwapPair } from "./vwap.js";
 
 const TIMEFRAME_SECONDS = Object.freeze({ Min1: 60, Min15: 900, Min60: 3600 });
 const HISTORY_CANDLES = 2000;
@@ -121,6 +122,8 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
             lastPrice: item.contract.lastPrice,
             candleClose: item.current.close_price,
             haClose: item.currentHarsi.ha_close,
+            vwapDaily: item.currentVwap.vwap_daily,
+            vwapRolling: item.currentVwap.vwap_rolling,
             candleOpenTime: item.current.open_time
           });
         }
@@ -156,11 +159,13 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
         const current = currentCandleFrom(currentResponse, currentOpen);
         if (!current) throw new Error(`MEXC did not return the currently forming ${timeframe} candle.`);
 
-        const currentHarsi = calculateHarsi([...history.candles, current])
+        const candlesForIndicators = [...history.candles, current];
+        const currentHarsi = calculateHarsi(candlesForIndicators)
           .find((row) => row.open_time === current.open_time);
         if (!currentHarsi) throw new Error("HARSI value is not ready for the current candle.");
+        const currentVwap = calculateVwapPair(candlesForIndicators, serverNowMs);
 
-        pending.push({ contract, current, currentHarsi });
+        pending.push({ contract, current, currentHarsi, currentVwap });
         if (pending.length >= PERSISTENCE_BATCH_SIZE) {
           const batch = pending.splice(0, PERSISTENCE_BATCH_SIZE);
           await queuePersistence(batch);
