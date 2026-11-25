@@ -30,6 +30,8 @@ test("local SQLite store initializes schema and commits candle/HA rows atomicall
   await store.initialize();
   assert.equal(db.executed.length, 14);
   assert.match(db.queries[0].statement, /foreign_keys = ON/i);
+  assert.ok(db.executed.some((sql) => sql.includes("mexc_futures_ohlcv_5m")));
+  assert.ok(db.executed.some((sql) => sql.includes("mexc_harsi_results_5m")));
   assert.ok(db.executed.some((sql) => sql.includes("mexc_futures_ohlcv_15m")));
   assert.ok(db.executed.some((sql) => sql.includes("mexc_harsi_results_15m")));
   assert.ok(db.executed.some((sql) => sql.includes("mexc_futures_ohlcv_1h")));
@@ -71,6 +73,7 @@ test("latest HA query qualifies sort columns after joining VWAP", async () => {
   const store = createLocalSqliteStore(db);
   await store.getLatestHarsiResults(1000, "Min5");
   const sql = db.queries.at(-1).statement;
+  assert.match(sql, /mexc_harsi_results_5m/);
   assert.match(sql, /ORDER BY latest\.close_time DESC, latest\.symbol ASC LIMIT \?/);
 });
 
