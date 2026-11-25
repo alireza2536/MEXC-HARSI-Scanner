@@ -96,12 +96,12 @@
           <span>تا</span>
         </div>
         <div class="ha-filter-row" data-timeframe="Min1">
-          <button class="ha-filter-timeframe" type="button" data-toggle-timeframe="Min1" aria-pressed="false">1m</button>
+          <span class="ha-filter-timeframe" data-timeframe-label="Min1">1m</span>
           <div><input id="filterFrom1m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
           <div><input id="filterTo1m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
         <div class="ha-filter-row" data-timeframe="Min15">
-          <button class="ha-filter-timeframe" type="button" data-toggle-timeframe="Min15" aria-pressed="false">15m</button>
+          <span class="ha-filter-timeframe" data-timeframe-label="Min15">15m</span>
           <div><input id="filterFrom15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
           <div><input id="filterTo15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
@@ -161,17 +161,14 @@ function updateTimeframeButtons(){
     element.setAttribute("aria-pressed",String(active));
     element.textContent=label+(active?" ✓":"");
   }
-  for(const control of document.querySelectorAll(".ha-filter-timeframe[data-toggle-timeframe]")){
-    const active=selectedTimeframes.has(control.dataset.toggleTimeframe);
-    control.classList.toggle("active",active);
-    control.setAttribute("aria-pressed",String(active));
+  // Filter timeframe labels are indicators only; they mirror the main
+  // timeframe selection and cannot be toggled independently.
+  for(const label of document.querySelectorAll(".ha-filter-timeframe[data-timeframe-label]")){
+    label.classList.toggle("active",selectedTimeframes.has(label.dataset.timeframeLabel));
   }
 }
 timeframe1m.addEventListener("click",()=>toggleTimeframe("Min1"));
 timeframe15m.addEventListener("click",()=>toggleTimeframe("Min15"));
-document.querySelectorAll(".ha-filter-timeframe[data-toggle-timeframe]").forEach(control=>{
-  control.addEventListener("click",()=>toggleTimeframe(control.dataset.toggleTimeframe));
-});
 const message=document.getElementById("message");
 const progressTrack=document.querySelector(".progress-track");
 const progressFill=document.getElementById("progressFill");
@@ -301,14 +298,8 @@ function renderRows(){
     td.textContent=all.length?"مقداری در این بازه پیدا نشد.":"مقداری برای نمایش وجود ندارد.";
     tr.append(td);rows.append(tr);
   }
-  if(activeRanges){
-    const eligibleCount=all.filter(item=>visibleTimeframes.every(timeframe=>item[timeframe]!==null)).length;
-    const numberFormat=new Intl.NumberFormat("fa-IR");
-    filterMessage.textContent=numberFormat.format(results.length)+" از "+numberFormat.format(eligibleCount)+" ارز";
-  }else{
-    const numberFormat=new Intl.NumberFormat("fa-IR");
-    filterMessage.textContent=numberFormat.format(all.length)+" از "+numberFormat.format(all.length)+" ارز";
-  }
+  const numberFormat=new Intl.NumberFormat("fa-IR");
+  filterMessage.textContent=numberFormat.format(results.length)+" ارز دارای شرط";
 }
 function getExportRows(filteredOnly){
   const visibleTimeframes=["Min1","Min15"].filter(timeframe=>selectedTimeframes.has(timeframe));
