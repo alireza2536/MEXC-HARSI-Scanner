@@ -241,12 +241,12 @@ button.addEventListener("click",async()=>{
   errorEl.textContent="";
   try{
     if(nativeApp){
-      if(selectedTimeframes.size===0) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
       const bridge=await window.localHarsiReady;
       if(bridge.getStatus().status==="running"){
         await bridge.cancelNow();
         return;
       }
+      if(selectedTimeframes.size===0) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
       button.disabled=true;
       render(await bridge.refreshNow([...selectedTimeframes]));
       return;
