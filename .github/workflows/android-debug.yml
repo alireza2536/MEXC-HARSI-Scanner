@@ -55,4 +55,4 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-# Trigger a fresh APK build for the latest approved app commit.
+# Rebuild APK after selected-timeframe results visibility update.
