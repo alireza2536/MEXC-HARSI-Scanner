@@ -77,6 +77,9 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
   let lastError = null;
   let activeJob = "idle";
   let completedAt = null;
+  // Keep the latest live progress in the authoritative status snapshot. Without
+  // this, the 3-second UI poll replaces fresh progress with the previous summary.
+  let currentProgress = null;
 
   async function loadSavedRows() {
     const savedRows = (await Promise.all(["Min1", "Min15"].map(async (timeframe) =>
@@ -113,7 +116,8 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       startedAt: null,
       finishedAt: completedAt,
       error: lastError,
-      summary: lastSummary
+      summary: lastSummary,
+      progress: currentProgress
     };
   }
 
@@ -127,6 +131,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
     controller = new AbortController();
     activeJob = "running";
     lastError = null;
+    currentProgress = null;
     publish();
 
     try {
@@ -152,10 +157,8 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
               failed: total.failed + item.failed,
               results: [...total.results, ...(item.results || [])]
             }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, results: [] });
-            onStatus?.({
-              ...getStatus(),
-              progress: { ...combined, timeframes: [...progressByTimeframe.keys()] }
-            });
+            currentProgress = { ...combined, timeframes: [...progressByTimeframe.keys()] };
+            onStatus?.(getStatus());
             if (progress.processed === 1 || progress.processed % 5 === 0 || progress.processed === progress.total) {
               void BackgroundScan.update({
                 message: `پردازش ${combined.processed} از ${combined.total} ارز`,
@@ -180,6 +183,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       completedAt = lastSummary.completedAt;
       activeJob = "completed";
       lastError = null;
+      currentProgress = null;
     } catch (error) {
       if (error.name === "AbortError" || controller.signal.aborted) {
         activeJob = "paused";
