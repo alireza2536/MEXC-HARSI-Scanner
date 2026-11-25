@@ -40,7 +40,7 @@ function publish(extra = {}) {
   windowRef?.webContents.send("harsi:status", { ...status(), ...extra });
 }
 async function loadSavedRows() {
-  const saved = (await Promise.all(["Min1", "Min15"].map(async (timeframe) =>
+  const saved = (await Promise.all(["Min1", "Min15", "Min60"].map(async (timeframe) =>
     (await store.getLatestHarsiResults(2000, timeframe)).map((row) => ({
       symbol: row.symbol, timeframe, haClose: row.ha_close == null ? null : Number(row.ha_close),
       candleOpenTime: row.open_time
@@ -74,9 +74,9 @@ async function runScan(timeframes) {
           if (controller?.signal.aborted) return;
           progressByTimeframe.set(timeframe, progress);
           const combined = [...progressByTimeframe.values()].reduce((a, p) => ({
-            processed: a.processed + p.processed, total: a.total + p.total,
-            failed: a.failed + p.failed, updated: a.updated + p.updated,
-            remaining: a.remaining + p.remaining, results: [...a.results, ...(p.results || [])]
+            processed: Math.max(a.processed, p.processed), total: Math.max(a.total, p.total),
+            failed: Math.max(a.failed, p.failed), updated: a.updated + p.updated,
+            remaining: Math.max(a.remaining, p.remaining), results: [...a.results, ...(p.results || [])]
           }), { processed: 0, total: 0, failed: 0, updated: 0, remaining: 0, results: [] });
           publish({ progress: { ...combined, timeframes: [...progressByTimeframe.keys()] } });
         }
@@ -142,7 +142,7 @@ app.whenReady().then(async () => {
   createWindow();
   ipcMain.handle("harsi:status", () => status());
   ipcMain.handle("harsi:refresh", async (_event, timeframes) => {
-    const selected = [...new Set(timeframes || [])].filter((v) => ["Min1", "Min15"].includes(v));
+    const selected = [...new Set(timeframes || [])].filter((v) => ["Min1", "Min15", "Min60"].includes(v));
     if (!selected.length) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
     if (running) return status();
     void runScan(selected);
