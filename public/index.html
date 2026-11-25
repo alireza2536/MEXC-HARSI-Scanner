@@ -482,6 +482,8 @@ function render(job){
     latestProgress=null;
     renderRows();
   }
+  const showUpdateStats=job.status==="running";
+  document.querySelector(".progress-details").style.display=showUpdateStats?"flex":"none";
   message.textContent="پردازش: "+Number(processed).toLocaleString("en-US")+" از "+Number(total).toLocaleString("en-US");
   errorCount.textContent="خطا: "+Number(failed).toLocaleString("en-US");
   const percent=total>0?Math.max(0,Math.min(100,processed/total*100)):0;
