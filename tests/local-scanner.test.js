@@ -42,7 +42,8 @@ test("local scanner reuses complete 2,000-candle cache and persists current HA",
       calls.maxPrice = maxPrice;
       return [{ symbol, lastPrice: 2 }];
     },
-    async get15mCandles(requestedSymbol, start, end) {
+    async getCandles(requestedSymbol, timeframe, start, end) {
+      assert.equal(timeframe, "Min15");
       assert.equal(requestedSymbol, symbol);
       assert.equal(start, CURRENT_OPEN);
       assert.equal(end, Math.floor(NOW_MS / 1000));
