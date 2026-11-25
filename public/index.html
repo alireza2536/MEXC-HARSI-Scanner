@@ -35,7 +35,7 @@
     .ha-filter{margin-bottom:16px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
     .ha-filter-fields{display:grid;grid-template-columns:1fr;gap:12px}
     .ha-filter-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center}
-    .ha-filter-timeframe{display:flex;align-items:center;justify-content:center;width:100%;background:#172438;border:1px solid #354862;border-radius:10px;color:#e5edf8;font-size:14px;font-weight:700;text-align:center;padding:0;height:46px;box-sizing:border-box;cursor:pointer}.ha-filter-timeframe.active{background:#1D4ED8;border-color:#1D4ED8;color:#fff}
+    .ha-filter-timeframe{display:flex;align-items:center;justify-content:center;width:100%;background:#172438;border:1px solid #354862;border-radius:10px;color:#e5edf8;font-size:14px;font-weight:700;text-align:center;padding:0;height:46px;box-sizing:border-box;cursor:pointer}.ha-filter-timeframe.active{background:#1D4ED8;border-color:#1D4ED8;color:#fff}.ha-filter-timeframe:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
     .ha-filter-headings{color:#e5edf8;font-size:13px;font-weight:700;text-align:center;align-items:center}
     .ha-filter-headings span{padding:2px}
     .ha-filter label{display:block;color:#9fb0c7;font-size:12px;margin-bottom:7px;text-align:center;visibility:hidden}
@@ -99,17 +99,17 @@
           <span>تا</span>
         </div>
         <div class="ha-filter-row" data-timeframe="Min1">
-          <span class="ha-filter-timeframe" data-timeframe-label="Min1">1m</span>
+          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min1" aria-pressed="false">1m</button>
           <div><input id="filterFrom1m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
           <div><input id="filterTo1m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
         <div class="ha-filter-row" data-timeframe="Min15">
-          <span class="ha-filter-timeframe" data-timeframe-label="Min15">15m</span>
+          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min15" aria-pressed="false">15m</button>
           <div><input id="filterFrom15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
           <div><input id="filterTo15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
         <div class="ha-filter-row" data-timeframe="Min60">
-          <span class="ha-filter-timeframe" data-timeframe-label="Min60">1h</span>
+          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min60" aria-pressed="false">1h</button>
           <div><input id="filterFrom1h" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
           <div><input id="filterTo1h" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
@@ -147,6 +147,7 @@ const timeframe1m=document.getElementById("timeframe1m");
 const timeframe15m=document.getElementById("timeframe15m");
 const timeframe1h=document.getElementById("timeframe1h");
 const selectedTimeframes=new Set();
+const filterTimeframes=new Set();
 function resetActiveFilter(){
   activeRanges=null;
   applyFilterButton.textContent="فیلتر";
@@ -156,11 +157,7 @@ function resetActiveFilter(){
 function toggleTimeframe(value){
   if(selectedTimeframes.has(value)) selectedTimeframes.delete(value);
   else selectedTimeframes.add(value);
-  // A filter belongs to the exact set of selected timeframes. Reset it when
-  // that set changes so a hidden timeframe cannot keep filtering the results.
-  resetActiveFilter();
   updateTimeframeButtons();
-  updateFilterRows();
   renderRows();
 }
 function updateTimeframeButtons(){
@@ -170,12 +167,25 @@ function updateTimeframeButtons(){
     element.setAttribute("aria-pressed",String(active));
     element.textContent=label+(active?" ✓":"");
   }
-  // Filter timeframe labels are indicators only; they mirror the main
-  // timeframe selection and cannot be toggled independently.
-  for(const label of document.querySelectorAll(".ha-filter-timeframe[data-timeframe-label]")){
-    label.classList.toggle("active",selectedTimeframes.has(label.dataset.timeframeLabel));
+ }
+function updateFilterTimeframeButtons(){
+  for(const element of document.querySelectorAll(".ha-filter-timeframe[data-timeframe-label]")){
+    const active=filterTimeframes.has(element.dataset.timeframeLabel);
+    element.classList.toggle("active",active);
+    element.setAttribute("aria-pressed",String(active));
   }
 }
+for(const element of document.querySelectorAll(".ha-filter-timeframe[data-timeframe-label]")){
+  element.addEventListener("click",()=>{
+    const timeframe=element.dataset.timeframeLabel;
+    if(filterTimeframes.has(timeframe)) filterTimeframes.delete(timeframe);
+    else filterTimeframes.add(timeframe);
+    resetActiveFilter();
+    updateFilterTimeframeButtons();
+    renderRows();
+  });
+}
+updateFilterTimeframeButtons();
 timeframe1m.addEventListener("click",()=>toggleTimeframe("Min1"));
 timeframe15m.addEventListener("click",()=>toggleTimeframe("Min15"));
 timeframe1h.addEventListener("click",()=>toggleTimeframe("Min60"));
@@ -218,7 +228,7 @@ for(const pair of Object.values(filterInputs)) for(const input of [pair.from,pai
   useEnglishDigits(input);
 }
 function updateFilterRows(){
-  for(const row of filterRows) if(row.dataset.timeframe) row.hidden=!selectedTimeframes.has(row.dataset.timeframe);
+  for(const row of filterRows) if(row.dataset.timeframe) row.hidden=false;
 }
 updateFilterRows();
 let sortDirections={Min1:"desc",Min15:"desc",Min60:"desc"};
@@ -245,9 +255,10 @@ function groupedResults(){
   return [...bySymbol.values()];
 }
 function updateResultsColumns(){
-  const show1m=selectedTimeframes.has("Min1");
-  const show15m=selectedTimeframes.has("Min15");
-  const show1h=selectedTimeframes.has("Min60");
+  const displayTimeframes=new Set([...selectedTimeframes,...filterTimeframes]);
+  const show1m=displayTimeframes.has("Min1");
+  const show15m=displayTimeframes.has("Min15");
+  const show1h=displayTimeframes.has("Min60");
   heading1m.hidden=!show1m; col1m.hidden=!show1m;
   heading15m.hidden=!show15m; col15m.hidden=!show15m;
   heading1h.hidden=!show1h; col1h.hidden=!show1h;
@@ -258,14 +269,16 @@ function updateResultsColumns(){
   col1m.style.width=width;
   col15m.style.width=width;
   col1h.style.width=width;
-  if(!selectedTimeframes.has(sortBy)){
+  if(!displayTimeframes.has(sortBy)){
     sortBy=show1m?"Min1":show15m?"Min15":show1h?"Min60":"Min1";
   }
 }
 function renderRows(){
   updateResultsColumns();
   rows.replaceChildren();
-  const visibleTimeframes=["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe));
+  const visibleTimeframes=activeRanges
+    ? Object.keys(activeRanges)
+    : ["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
   const all=groupedResults();
   if(!visibleTimeframes.length){
     const tr=document.createElement("tr");
@@ -303,7 +316,7 @@ function renderRows(){
     card.append(coinCell);
     for(const timeframe of ["Min1","Min15","Min60"]){
       const cell=document.createElement("span");
-      cell.textContent=selectedTimeframes.has(timeframe)?fmtHa(item[timeframe]):"";
+      cell.textContent=(selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe))?fmtHa(item[timeframe]):"";
       card.append(cell);
     }
     td.append(card);
@@ -339,7 +352,9 @@ function getExportRows(filteredOnly){
   });
 }
 async function exportResults(filteredOnly, chosenName){
-  const visibleTimeframes=["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe));
+  const visibleTimeframes=activeRanges
+    ? Object.keys(activeRanges)
+    : ["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
   if(!visibleTimeframes.length){
     filterMessage.textContent="برای خروجی گرفتن حداقل یک تایم‌فریم را انتخاب کنید.";
     return;
@@ -451,12 +466,12 @@ applyFilterButton.addEventListener("click",()=>{
     renderRows();
     return;
   }
-  if(selectedTimeframes.size===0){
-    filterMessage.textContent="حداقل یک تایم‌فریم را انتخاب کنید.";
+  if(filterTimeframes.size===0){
+    filterMessage.textContent="حداقل یک تایم‌فریم را در بخش فیلتر انتخاب کنید.";
     return;
   }
   const ranges={};
-  for(const timeframe of selectedTimeframes){
+  for(const timeframe of filterTimeframes){
     const pair=filterInputs[timeframe];
     const fromText=normalizeNumericInput(pair.from.value),toText=normalizeNumericInput(pair.to.value);
     if(fromText===""||toText===""){
@@ -489,7 +504,9 @@ function render(job){
     total=Number(job.progress.total)||0;
     failed=Number(job.progress.failed)||0;
     if(Array.isArray(job.progress.results)){
-      latestResults=job.progress.results;
+      const merged=new Map(latestResults.map(item=>[String(item.timeframe)+"|"+String(item.symbol).toUpperCase(),item]));
+      for(const item of job.progress.results) merged.set(String(item.timeframe)+"|"+String(item.symbol).toUpperCase(),item);
+      latestResults=[...merged.values()];
       renderRows();
     }
   }else if(summary){
