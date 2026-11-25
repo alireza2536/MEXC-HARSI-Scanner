@@ -2,7 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import { registerPlugin } from "@capacitor/core";
 import { CapacitorSQLite, SQLiteConnection } from "@capacitor-community/sqlite";
 import { config } from "../src/config.js";
-import { MexcClient } from "../src/mexc-client.js";
+import { createMexcRequestLimiter, MexcClient } from "../src/mexc-client.js";
 import { runLocalHarsiScan } from "../src/local-scanner.js";
 import { createLocalSqliteStore } from "../src/local-sqlite-store.js";
 
@@ -95,37 +95,47 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     publish();
 
     try {
-      const summaries = [];
-      for (const timeframe of timeframes) {
+      const requestLimiter = createMexcRequestLimiter();
+      const progressByTimeframe = new Map();
+      const summaries = await Promise.all(timeframes.map(async (timeframe) => {
         if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
-        const summary = await runLocalHarsiScan({
-          mexc: new MexcClient({ signal: controller.signal }),
+        return runLocalHarsiScan({
+          mexc: new MexcClient({ signal: controller.signal, requestLimiter }),
           store,
           maxPrice: config.maxPrice,
           signal: controller.signal,
           timeframe,
           onProgress: (progress) => {
-          if (!controller?.signal.aborted) {
-            onStatus?.({ ...getStatus(), progress: { ...progress, timeframe } });
+            if (controller?.signal.aborted) return;
+            progressByTimeframe.set(timeframe, progress);
+            const combined = [...progressByTimeframe.values()].reduce((total, item) => ({
+              processed: total.processed + item.processed,
+              total: total.total + item.total,
+              remaining: total.remaining + item.remaining,
+              updated: total.updated + item.updated,
+              failed: total.failed + item.failed
+            }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0 });
+            onStatus?.({
+              ...getStatus(),
+              progress: { ...combined, timeframes: [...progressByTimeframe.keys()] }
+            });
             if (progress.processed === 1 || progress.processed % 5 === 0 || progress.processed === progress.total) {
               void BackgroundScan.update({
-                message: `${timeframe === "Min1" ? "۱ دقیقه" : "۱۵ دقیقه"} — پردازش ${progress.processed} از ${progress.total} ارز`,
-                processed: progress.processed,
-                total: progress.total
+                message: `پردازش ${combined.processed} از ${combined.total} ارز`,
+                processed: combined.processed,
+                total: combined.total
               }).catch(() => {});
             }
           }
-        }
         });
-        summaries.push(summary);
-      }
+      }));
       if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
       lastSummary = {
         eligibleContracts: summaries.reduce((sum, item) => sum + item.eligibleContracts, 0),
         updatedContracts: summaries.reduce((sum, item) => sum + item.updatedContracts, 0),
         failedContracts: summaries.reduce((sum, item) => sum + item.failedContracts, 0),
         completedAt: new Date().toISOString(),
-        results: summaries.flatMap((item, index) => item.results.map((row) => ({ ...row, timeframe: timeframes[index] })))
+        results: summaries.flatMap((item) => item.results)
       };
       completedAt = lastSummary.completedAt;
       activeJob = "completed";
