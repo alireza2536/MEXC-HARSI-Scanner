@@ -2,6 +2,12 @@ package com.personal.harsi;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.ContentValues;
+import android.net.Uri;
+import android.os.Environment;
+import android.provider.MediaStore;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import android.os.Build;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -57,6 +63,50 @@ public class BackgroundScanPlugin extends Plugin {
         intent.putExtra("total", call.getInt("total", 0));
         getContext().startService(intent);
         call.resolve();
+    }
+
+
+    @PluginMethod
+    public void saveTextToDownloads(PluginCall call) {
+        String content = call.getString("content");
+        String fileName = call.getString("fileName");
+        if (content == null || fileName == null || fileName.trim().isEmpty()) {
+            call.reject("محتوا یا نام فایل معتبر نیست.");
+            return;
+        }
+        try {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+            values.put(MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+            Uri uri;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Harsi");
+                values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+                uri = getContext().getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            } else {
+                java.io.File dir = new java.io.File(getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "Harsi");
+                if (!dir.exists() && !dir.mkdirs()) throw new java.io.IOException("ساخت پوشه دانلود ناموفق بود.");
+                java.io.File file = new java.io.File(dir, fileName);
+                try (OutputStream out = new java.io.FileOutputStream(file)) {
+                    out.write(content.getBytes(StandardCharsets.UTF_8));
+                }
+                call.resolve(new com.getcapacitor.JSObject().put("fileName", fileName).put("location", file.getAbsolutePath()));
+                return;
+            }
+            if (uri == null) throw new java.io.IOException("ساخت فایل در پوشه دانلود ناموفق بود.");
+            try (OutputStream out = getContext().getContentResolver().openOutputStream(uri)) {
+                if (out == null) throw new java.io.IOException("دسترسی نوشتن فایل ممکن نیست.");
+                out.write(content.getBytes(StandardCharsets.UTF_8));
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues done = new ContentValues();
+                done.put(MediaStore.MediaColumns.IS_PENDING, 0);
+                getContext().getContentResolver().update(uri, done, null, null);
+            }
+            call.resolve(new com.getcapacitor.JSObject().put("fileName", fileName).put("location", "Downloads/Harsi/" + fileName));
+        } catch (Exception error) {
+            call.reject("ذخیره فایل در پوشه دانلود ناموفق بود: " + error.getMessage(), error);
+        }
     }
 
     @PluginMethod
