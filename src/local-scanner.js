@@ -1,8 +1,7 @@
 import { calculateHarsi } from "./harsi.js";
 import { hasCompleteCandleWindow } from "./candle-history-cache.js";
 
-const CANDLE_SECONDS = 15 * 60;
-const CANDLE_MS = CANDLE_SECONDS * 1000;
+const TIMEFRAME_SECONDS = Object.freeze({ Min1: 60, Min15: 900 });
 const HISTORY_CANDLES = 2000;
 const PERSISTENCE_BATCH_SIZE = 50;
 
@@ -14,21 +13,23 @@ function log(event, details = {}) {
   console.info(JSON.stringify({ at: new Date().toISOString(), event, ...details }));
 }
 
-async function getHistory(store, mexc, symbol, currentOpen, signal) {
+async function getHistory(store, mexc, symbol, currentOpen, signal, timeframe, candleSeconds) {
   const cached = await store.getHistoricalCandles(
     symbol,
     new Date(currentOpen * 1000).toISOString(),
-    HISTORY_CANDLES
+    HISTORY_CANDLES,
+    timeframe
   );
-  const expectedLastOpen = (currentOpen - CANDLE_SECONDS) * 1000;
+  const expectedLastOpen = (currentOpen - candleSeconds) * 1000;
 
   if (hasCompleteCandleWindow(cached, HISTORY_CANDLES, expectedLastOpen, CANDLE_MS)) {
     return { candles: cached, cacheHit: true };
   }
 
-  const response = await mexc.get15mCandles(
+  const response = await mexc.getCandles(
     symbol,
-    currentOpen - HISTORY_CANDLES * CANDLE_SECONDS,
+    timeframe,
+    currentOpen - HISTORY_CANDLES * candleSeconds,
     currentOpen - 1
   );
   if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
@@ -42,7 +43,7 @@ async function getHistory(store, mexc, symbol, currentOpen, signal) {
       `History is incomplete: expected ${HISTORY_CANDLES} prior candles, received ${historical.length}`
     );
   }
-  await store.upsertCandles(historical);
+  await store.upsertCandles(historical, timeframe);
   return { candles: historical, cacheHit: false };
 }
 
@@ -50,7 +51,7 @@ async function getHistory(store, mexc, symbol, currentOpen, signal) {
  * Local scanner. The Android caller owns scan lifecycle and keeps a native
  * foreground service active for the duration of each user-started scan.
  */
-export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal } = {}) {
+export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal, timeframe = "Min15" } = {}) {
   if (!mexc || !store) throw new TypeError("MEXC client and local store are required.");
   if (!Number.isFinite(maxPrice) || maxPrice <= 0) {
     throw new TypeError("The current scanner maxPrice setting must be provided.");
@@ -61,18 +62,21 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
     throw new TypeError("The MEXC client does not implement the scanner interface.");
   }
 
+  const candleSeconds = TIMEFRAME_SECONDS[timeframe];
+  if (!candleSeconds) throw new TypeError(`Unsupported timeframe: ${timeframe}`);
+
   const throwIfAborted = () => {
     if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
   };
   throwIfAborted();
   await store.initialize();
-  await store.pruneExpiredHarsi();
+  await store.pruneExpiredHarsi(new Date(), timeframe);
   throwIfAborted();
 
   const serverNowMs = Number.isFinite(nowMs) ? nowMs : await mexc.getServerTimeMs();
   throwIfAborted();
   const nowSeconds = Math.floor(serverNowMs / 1000);
-  const currentOpen = Math.floor(nowSeconds / CANDLE_SECONDS) * CANDLE_SECONDS;
+  const currentOpen = Math.floor(nowSeconds / candleSeconds) * candleSeconds;
   const contracts = await mexc.getEligibleUsdtContracts(maxPrice);
   throwIfAborted();
 
@@ -108,10 +112,11 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   function queuePersistence(batch) {
     persistQueue = persistQueue.then(async () => {
       try {
-        await store.persistCurrentBatch(batch);
+        await store.persistCurrentBatch(batch, timeframe);
         updatedContracts += batch.length;
         for (const item of batch) {
           results.push({
+            timeframe,
             symbol: item.contract.symbol,
             lastPrice: item.contract.lastPrice,
             candleClose: item.current.close_price,
@@ -136,19 +141,20 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
       if (index >= contracts.length) return;
       const contract = contracts[index];
       try {
-        const history = await getHistory(store, mexc, contract.symbol, currentOpen, signal);
+        const history = await getHistory(store, mexc, contract.symbol, currentOpen, signal, timeframe, candleSeconds);
         throwIfAborted();
         if (history.cacheHit) historyCacheHits += 1;
         else historyBackfills += 1;
 
-        const currentResponse = await mexc.get15mCandles(
+        const currentResponse = await mexc.getCandles(
           contract.symbol,
+          timeframe,
           currentOpen,
           nowSeconds
         );
         throwIfAborted();
         const current = currentCandleFrom(currentResponse, currentOpen);
-        if (!current) throw new Error("MEXC did not return the currently forming 15m candle.");
+        if (!current) throw new Error(`MEXC did not return the currently forming ${timeframe} candle.`);
 
         const currentHarsi = calculateHarsi([...history.candles, current])
           .find((row) => row.open_time === current.open_time);
@@ -183,7 +189,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   throwIfAborted();
   publishProgress(null);
 
-  await store.pruneCandleHistory();
+  await store.pruneCandleHistory(timeframe);
   const summary = {
     eligibleContracts: contracts.length,
     updatedContracts,
@@ -195,7 +201,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
     results
   };
   log("local_scan_completed", {
-    timeframe: "Min15",
+    timeframe,
     eligibleContracts: summary.eligibleContracts,
     updatedContracts: summary.updatedContracts,
     failedContracts: summary.failedContracts,
