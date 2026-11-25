@@ -149,12 +149,15 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
           onProgress: (progress) => {
             if (controller?.signal.aborted) return;
             progressByTimeframe.set(timeframe, progress);
-            const combined = [...progressByTimeframe.values()].reduce((total, item) => ({
-              processed: total.processed + item.processed,
-              total: total.total + item.total,
-              remaining: total.remaining + item.remaining,
-              updated: total.updated + item.updated,
-              failed: total.failed + item.failed,
+            const timeframeProgress = [...progressByTimeframe.values()];
+            // Both timeframes scan the same currency universe. Progress is a
+            // count of distinct currencies, not timeframe-currency tasks.
+            const combined = timeframeProgress.reduce((total, item) => ({
+              processed: Math.max(total.processed, Number(item.processed) || 0),
+              total: Math.max(total.total, Number(item.total) || 0),
+              remaining: Math.max(total.remaining, Number(item.remaining) || 0),
+              updated: total.updated + (Number(item.updated) || 0),
+              failed: Math.max(total.failed, Number(item.failed) || 0),
               results: [...total.results, ...(item.results || [])]
             }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, results: [] });
             currentProgress = { ...combined, timeframes: [...progressByTimeframe.keys()] };
@@ -174,9 +177,13 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       if (failedScan) throw failedScan.reason;
       const summaries = outcomes.map((outcome) => outcome.value);
       lastSummary = {
-        eligibleContracts: summaries.reduce((sum, item) => sum + item.eligibleContracts, 0),
+        // A currency selected in two timeframes is still one eligible currency.
+        eligibleContracts: Math.max(0, ...summaries.map((item) => Number(item.eligibleContracts) || 0)),
+        processedContracts: Math.max(0, ...summaries.map((item) =>
+          (Number(item.updatedContracts) || 0) + (Number(item.failedContracts) || 0)
+        )),
         updatedContracts: summaries.reduce((sum, item) => sum + item.updatedContracts, 0),
-        failedContracts: summaries.reduce((sum, item) => sum + item.failedContracts, 0),
+        failedContracts: Math.max(0, ...summaries.map((item) => Number(item.failedContracts) || 0)),
         completedAt: new Date().toISOString(),
         results: summaries.flatMap((item) => item.results)
       };
