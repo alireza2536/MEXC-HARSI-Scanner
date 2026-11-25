@@ -51,7 +51,7 @@ async function getHistory(store, mexc, symbol, currentOpen, signal, timeframe, c
  * Local scanner. The Android caller owns scan lifecycle and keeps a native
  * foreground service active for the duration of each user-started scan.
  */
-export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal, timeframe = "Min15" } = {}) {
+export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal, timeframe = "Min15", workerCount = 5 } = {}) {
   if (!mexc || !store) throw new TypeError("MEXC client and local store are required.");
   if (!Number.isFinite(maxPrice) || maxPrice <= 0) {
     throw new TypeError("The current scanner maxPrice setting must be provided.");
@@ -175,9 +175,9 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
     }
   }
 
-  // Keep the combined 1m + 15m workload bounded when both scans run together.
+  const concurrency = Math.max(1, Math.min(5, Math.floor(Number(workerCount) || 1)));
   await Promise.all(
-    Array.from({ length: Math.min(3, contracts.length) }, () => worker())
+    Array.from({ length: Math.min(concurrency, contracts.length) }, () => worker())
   );
   throwIfAborted();
 
