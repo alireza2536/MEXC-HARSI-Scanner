@@ -87,9 +87,7 @@ const SCHEMA = [
     timeframe TEXT NOT NULL,
     open_time TEXT NOT NULL,
     vwap_daily REAL,
-    vwap_rolling REAL,
     daily_candle_count INTEGER NOT NULL DEFAULT 0,
-    rolling_candle_count INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (symbol, timeframe, open_time)
   )`,
@@ -152,6 +150,24 @@ export function createLocalSqliteStore(sqliteConnection) {
       initializationPromise = (async () => {
         await sqliteConnection.query("PRAGMA foreign_keys = ON;");
         for (const statement of SCHEMA) await sqliteConnection.execute(statement);
+        // Rebuild legacy VWAP storage once, dropping rolling VWAP values while preserving daily history.
+        const vwapColumns = await sqliteConnection.query("PRAGMA table_info(mexc_vwap_values);");
+        if ((vwapColumns.values || []).some((column) => column.name === "vwap_rolling")) {
+          await sqliteConnection.execute(`CREATE TABLE mexc_vwap_values_daily (
+            symbol TEXT NOT NULL, timeframe TEXT NOT NULL, open_time TEXT NOT NULL,
+            vwap_daily REAL, daily_candle_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (symbol, timeframe, open_time)
+          )`);
+          await sqliteConnection.execute(`INSERT INTO mexc_vwap_values_daily
+            (symbol, timeframe, open_time, vwap_daily, daily_candle_count, updated_at)
+            SELECT symbol, timeframe, open_time, vwap_daily, daily_candle_count, updated_at
+            FROM mexc_vwap_values`);
+          await sqliteConnection.execute("DROP TABLE mexc_vwap_values;");
+          await sqliteConnection.execute("ALTER TABLE mexc_vwap_values_daily RENAME TO mexc_vwap_values;");
+          await sqliteConnection.execute(`CREATE INDEX IF NOT EXISTS idx_local_vwap_latest
+            ON mexc_vwap_values(symbol, timeframe, open_time DESC)`);
+        }
         initialized = true;
       })().catch((error) => {
         initializationPromise = null;
@@ -218,17 +234,14 @@ export function createLocalSqliteStore(sqliteConnection) {
         operations.push({ statement: harsiStatement, values: valuesFor(item.currentHarsi, HARSI_COLUMNS) });
         operations.push({
           statement: `INSERT INTO mexc_vwap_values
-            (symbol, timeframe, open_time, vwap_daily, vwap_rolling, daily_candle_count, rolling_candle_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (symbol, timeframe, open_time, vwap_daily, daily_candle_count)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(symbol, timeframe, open_time) DO UPDATE SET
               vwap_daily = excluded.vwap_daily,
-              vwap_rolling = excluded.vwap_rolling,
               daily_candle_count = excluded.daily_candle_count,
-              rolling_candle_count = excluded.rolling_candle_count,
               updated_at = CURRENT_TIMESTAMP`,
           values: [item.current.symbol, timeframe, item.current.open_time,
-            item.currentVwap?.vwap_daily ?? null, item.currentVwap?.vwap_rolling ?? null,
-            item.currentVwap?.daily_candle_count ?? 0, item.currentVwap?.rolling_candle_count ?? 0]
+            item.currentVwap?.vwap_daily ?? null, item.currentVwap?.daily_candle_count ?? 0]
         });
       }
       if (operations.length) {
@@ -265,7 +278,7 @@ export function createLocalSqliteStore(sqliteConnection) {
         `SELECT latest.symbol, latest.open_time, latest.close_time, latest.ha_close,
                 latest.ha_open, latest.ha_high, latest.ha_low, latest.rsi_close,
                 latest.scan_match, latest.calculation_version,
-                vwap.vwap_daily, vwap.vwap_rolling
+                vwap.vwap_daily
          FROM (
            SELECT symbol, open_time, close_time, ha_close, ha_open, ha_high, ha_low,
                   rsi_close, scan_match, calculation_version,
