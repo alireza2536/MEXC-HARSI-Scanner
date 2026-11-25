@@ -235,6 +235,10 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
         // unexpected exceptions. A failed coin is already logged by the worker
         // and does not prevent the remaining contracts from being processed.
         if (serviceStarted) await BackgroundScan.stop().catch(() => {});
+        // Publish once more after the native foreground service has stopped.
+        // This final authoritative event prevents the UI cancel label from
+        // remaining visible if the WebView missed the scan-completion event.
+        if (!running) publish();
       }
     }
   };
