@@ -216,3 +216,6 @@ if (Capacitor.isNativePlatform()) {
     };
   });
 }
+
+// Native Android TXT export: save directly into the public Downloads/Harsi folder.
+window.harsiAndroidExportText = async (content, fileName) => BackgroundScan.saveTextToDownloads({ content, fileName });
