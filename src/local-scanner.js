@@ -175,8 +175,9 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
     }
   }
 
+  // Keep the combined 1m + 15m workload bounded when both scans run together.
   await Promise.all(
-    Array.from({ length: Math.min(5, contracts.length) }, () => worker())
+    Array.from({ length: Math.min(3, contracts.length) }, () => worker())
   );
   throwIfAborted();
 
