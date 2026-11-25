@@ -57,7 +57,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   }
   if (typeof mexc.getServerTimeMs !== "function"
       || typeof mexc.getEligibleUsdtContracts !== "function"
-      || typeof mexc.get15mCandles !== "function") {
+      || typeof mexc.getCandles !== "function") {
     throw new TypeError("The MEXC client does not implement the scanner interface.");
   }
 
@@ -77,7 +77,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   throwIfAborted();
 
   log("local_scan_started", {
-    timeframe: "Min15",
+    timeframe,
     eligibleContracts: contracts.length,
     historicalCandles: HISTORY_CANDLES,
     currentCandleOpen: currentOpen
