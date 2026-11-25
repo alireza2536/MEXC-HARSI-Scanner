@@ -69,7 +69,7 @@ test("local SQLite store initializes schema and commits candle/HA rows atomicall
 test("latest HA query qualifies sort columns after joining VWAP", async () => {
   const db = fakeConnection();
   const store = createLocalSqliteStore(db);
-  await store.getLatestHarsiResults(1000, "Min1");
+  await store.getLatestHarsiResults(1000, "Min5");
   const sql = db.queries.at(-1).statement;
   assert.match(sql, /ORDER BY latest\.close_time DESC, latest\.symbol ASC LIMIT \?/);
 });
@@ -118,24 +118,24 @@ test("concurrent timeframe writes are serialized and initialization runs once", 
     current: {
       symbol: "BTC_USDT",
       open_time: "2026-11-24T00:00:00.000Z",
-      close_time: "2026-11-24T00:01:00.000Z",
+      close_time: "2026-11-24T00:05:00.000Z",
       open_price: 1, high_price: 2, low_price: 0.5, close_price: 1.5,
       volume: 3, amount: 4
     },
     currentHarsi: {
       symbol: "BTC_USDT",
       open_time: "2026-11-24T00:00:00.000Z",
-      close_time: "2026-11-24T00:01:00.000Z",
+      close_time: "2026-11-24T00:05:00.000Z",
       rsi_open: 50, rsi_high: 55, rsi_low: 45, rsi_close: 52,
       ha_open: 50, ha_high: 55, ha_low: 45, ha_close: 52,
       scan_match: null, calculation_version: "test"
     }
   };
   await Promise.all([
-    store.persistCurrentBatch([item], "Min1"),
-    store.persistCurrentBatch([item], "Min15"),
-    store.persistCurrentBatch([item], "Min1"),
-    store.persistCurrentBatch([item], "Min15")
+    store.persistCurrentBatch([item], "Min5"),
+    store.persistCurrentBatch([item], "Min55"),
+    store.persistCurrentBatch([item], "Min5"),
+    store.persistCurrentBatch([item], "Min55")
   ]);
 
   assert.equal(maxActiveWrites, 1);
