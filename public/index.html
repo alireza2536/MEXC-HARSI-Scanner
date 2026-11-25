@@ -134,7 +134,7 @@ function toEnglishDigits(value){
 function useEnglishDigits(input){input.value=toEnglishDigits(input.value);}
 for(const pair of Object.values(filterInputs)) for(const input of [pair.from,pair.to]){
   input.style.textAlign="center";
-  input.addEventListener("input",()=>useEnglishDigits(input));
+  input.addEventListener("input",()=>{useEnglishDigits(input);input.style.textAlign="center";});
   input.addEventListener("focus",()=>{input.value="";input.style.textAlign="center";});
   useEnglishDigits(input);
 }
