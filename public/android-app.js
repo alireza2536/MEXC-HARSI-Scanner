@@ -176,6 +176,14 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       const failedScan = outcomes.find((outcome) => outcome.status === "rejected");
       if (failedScan) throw failedScan.reason;
       const summaries = outcomes.map((outcome) => outcome.value);
+      // Keep the latest saved value for every symbol/timeframe pair. A scan
+      // of 15m must not discard previously saved 1h or 1m values from the UI.
+      const mergedResults = new Map(
+        (lastSummary?.results || []).map((item) => [`${item.timeframe}|${String(item.symbol).toUpperCase()}`, item])
+      );
+      for (const item of summaries.flatMap((summary) => summary.results)) {
+        mergedResults.set(`${item.timeframe}|${String(item.symbol).toUpperCase()}`, item);
+      }
       lastSummary = {
         // A currency selected in two timeframes is still one eligible currency.
         eligibleContracts: Math.max(0, ...summaries.map((item) => Number(item.eligibleContracts) || 0)),
@@ -185,7 +193,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
         updatedContracts: summaries.reduce((sum, item) => sum + item.updatedContracts, 0),
         failedContracts: Math.max(0, ...summaries.map((item) => Number(item.failedContracts) || 0)),
         completedAt: new Date().toISOString(),
-        results: summaries.flatMap((item) => item.results)
+        results: [...mergedResults.values()]
       };
       completedAt = lastSummary.completedAt;
       activeJob = "completed";
