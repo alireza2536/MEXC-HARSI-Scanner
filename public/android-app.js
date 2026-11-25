@@ -82,7 +82,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
   let currentProgress = null;
 
   async function loadSavedRows() {
-    const savedRows = (await Promise.all(["Min5", "Min55", "Min60"].map(async (timeframe) =>
+    const savedRows = (await Promise.all(["Min5", "Min15", "Min60"].map(async (timeframe) =>
       (await store.getLatestHarsiResults(2000, timeframe)).map((row) => ({ ...row, timeframe }))
     ))).flat();
     if (savedRows.length) {
@@ -222,9 +222,9 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       await BackgroundScan.stop().catch(() => {});
       return getStatus();
     },
-    async refreshNow(timeframes = ["Min55"]) {
+    async refreshNow(timeframes = ["Min15"]) {
       if (running) return getStatus();
-      const selected = [...new Set(timeframes)].filter((value) => ["Min5", "Min55", "Min60"].includes(value));
+      const selected = [...new Set(timeframes)].filter((value) => ["Min5", "Min15", "Min60"].includes(value));
       if (!selected.length) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
       // Notification permission is optional: Android can still run a foreground
       // service when notifications are denied. Never block the market scan on it.
