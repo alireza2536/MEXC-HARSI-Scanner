@@ -339,7 +339,7 @@ function getExportRows(filteredOnly){
   });
 }
 async function exportResults(filteredOnly, chosenName){
-  const visibleTimeframes=["Min1","Min15"].filter(timeframe=>selectedTimeframes.has(timeframe));
+  const visibleTimeframes=["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe));
   if(!visibleTimeframes.length){
     filterMessage.textContent="برای خروجی گرفتن حداقل یک تایم‌فریم را انتخاب کنید.";
     return;
@@ -460,7 +460,7 @@ applyFilterButton.addEventListener("click",()=>{
     const pair=filterInputs[timeframe];
     const fromText=normalizeNumericInput(pair.from.value),toText=normalizeNumericInput(pair.to.value);
     if(fromText===""||toText===""){
-      filterMessage.textContent="لطفاً مقدار «از» و «تا» را برای "+(timeframe==="Min1"?"1m":"15m")+" وارد کنید.";
+      filterMessage.textContent="لطفاً مقدار «از» و «تا» را برای "+(timeframe==="Min1"?"1m":timeframe==="Min15"?"15m":"1h")+" وارد کنید.";
       return;
     }
     const from=Number(fromText),to=Number(toText);
