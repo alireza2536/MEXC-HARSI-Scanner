@@ -133,9 +133,9 @@ test("concurrent timeframe writes are serialized and initialization runs once", 
   };
   await Promise.all([
     store.persistCurrentBatch([item], "Min5"),
-    store.persistCurrentBatch([item], "Min55"),
+    store.persistCurrentBatch([item], "Min15"),
     store.persistCurrentBatch([item], "Min5"),
-    store.persistCurrentBatch([item], "Min55")
+    store.persistCurrentBatch([item], "Min15")
   ]);
 
   assert.equal(maxActiveWrites, 1);
