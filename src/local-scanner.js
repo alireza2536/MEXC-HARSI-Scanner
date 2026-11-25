@@ -1,6 +1,6 @@
 import { calculateHarsi } from "./harsi.js";
 import { hasCompleteCandleWindow } from "./candle-history-cache.js";
-import { calculateVwapPair } from "./vwap.js";
+import { calculateVwapPair, ROLLING_VWAP_CANDLES_BY_TIMEFRAME } from "./vwap.js";
 
 const TIMEFRAME_SECONDS = Object.freeze({ Min1: 60, Min15: 900, Min60: 3600 });
 const HISTORY_CANDLES = 2000;
@@ -163,7 +163,35 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
         const currentHarsi = calculateHarsi(candlesForIndicators)
           .find((row) => row.open_time === current.open_time);
         if (!currentHarsi) throw new Error("HARSI value is not ready for the current candle.");
-        const currentVwap = calculateVwapPair(candlesForIndicators, serverNowMs);
+
+        const rollingCandles = ROLLING_VWAP_CANDLES_BY_TIMEFRAME[timeframe];
+        const rollingVwap = calculateVwapPair(candlesForIndicators, serverNowMs, rollingCandles);
+        let dailyCandles = candlesForIndicators;
+        if (timeframe !== "Min15") {
+          const dailyCandleSeconds = TIMEFRAME_SECONDS.Min15;
+          const dailyCurrentOpen = Math.floor(nowSeconds / dailyCandleSeconds) * dailyCandleSeconds;
+          const dailyHistory = await getHistory(
+            store, mexc, contract.symbol, dailyCurrentOpen, signal, "Min15", dailyCandleSeconds
+          );
+          if (dailyHistory.cacheHit) historyCacheHits += 1;
+          else historyBackfills += 1;
+          const dailyCurrentResponse = await mexc.getCandles(
+            contract.symbol, "Min15", dailyCurrentOpen, nowSeconds
+          );
+          throwIfAborted();
+          const dailyCurrent = currentCandleFrom(dailyCurrentResponse, dailyCurrentOpen);
+          if (!dailyCurrent) throw new Error("MEXC did not return the currently forming Min15 candle for daily VWAP.");
+          dailyCandles = [...dailyHistory.candles, dailyCurrent];
+        }
+        const dailyVwap = calculateVwapPair(
+          dailyCandles, serverNowMs, ROLLING_VWAP_CANDLES_BY_TIMEFRAME.Min15
+        );
+        const currentVwap = {
+          vwap_daily: dailyVwap.vwap_daily,
+          vwap_rolling: rollingVwap.vwap_rolling,
+          daily_candle_count: dailyVwap.daily_candle_count,
+          rolling_candle_count: rollingVwap.rolling_candle_count
+        };
 
         pending.push({ contract, current, currentHarsi, currentVwap });
         if (pending.length >= PERSISTENCE_BATCH_SIZE) {
