@@ -275,7 +275,7 @@ export function createLocalSqliteStore(sqliteConnection) {
          LEFT JOIN mexc_vwap_values vwap
            ON vwap.symbol = latest.symbol AND vwap.timeframe = ? AND vwap.open_time = latest.open_time
          WHERE latest.position = 1
-         ORDER BY close_time DESC, symbol ASC LIMIT ?`,
+         ORDER BY latest.close_time DESC, latest.symbol ASC LIMIT ?`,
         [timeframe, limit]
       );
       return result.values || [];
