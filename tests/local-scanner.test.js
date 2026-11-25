@@ -127,7 +127,8 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
   assert.equal(persistedTimeframe, "Min60");
   assert.equal(summary.updatedContracts, 1);
   assert.equal(summary.failedContracts, 0);
-  assert.equal(summary.historyCacheHits, 1);
+  assert.equal(summary.historyCacheHits, 2);
+  assert.equal(summary.historyBackfills, 0);
   assert.equal(summary.results[0].timeframe, "Min60");
 });
 
