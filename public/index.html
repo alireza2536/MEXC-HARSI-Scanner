@@ -298,13 +298,16 @@ async function exportResults(filteredOnly){
     if(window.harsiDesktop?.exportText){
       const result=await window.harsiDesktop.exportText(content,fileName);
       filterMessage.textContent=result?.canceled?"ذخیره فایل لغو شد.":"فایل TXT با موفقیت ذخیره شد.";
+    }else if(window.harsiAndroidExportText){
+      const result=await window.harsiAndroidExportText(content,fileName);
+      filterMessage.textContent="فایل در پوشه Downloads/Harsi ذخیره شد: "+(result?.fileName||fileName);
     }else{
       const blob=new Blob([content],{type:"text/plain;charset=utf-8"});
       const url=URL.createObjectURL(blob);
       const link=document.createElement("a");
       link.href=url;link.download=fileName;link.click();
-      URL.revokeObjectURL(url);
-      filterMessage.textContent="فایل TXT آماده شد.";
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      filterMessage.textContent="فایل TXT آماده شد؛ محل ذخیره را در دانلودها بررسی کنید.";
     }
   }catch(error){
     filterMessage.textContent="ذخیره فایل ناموفق بود: "+toEnglishDigits(error.message||error);
