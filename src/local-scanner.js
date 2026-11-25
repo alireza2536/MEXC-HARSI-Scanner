@@ -1,7 +1,7 @@
 import { calculateHarsi } from "./harsi.js";
 import { hasCompleteCandleWindow } from "./candle-history-cache.js";
 
-const TIMEFRAME_SECONDS = Object.freeze({ Min1: 60, Min15: 900 });
+const TIMEFRAME_SECONDS = Object.freeze({ Min1: 60, Min15: 900, Min60: 3600 });
 const HISTORY_CANDLES = 2000;
 const PERSISTENCE_BATCH_SIZE = 10;
 
