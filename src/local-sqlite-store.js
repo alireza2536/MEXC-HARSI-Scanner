@@ -102,12 +102,28 @@ export function createLocalSqliteStore(sqliteConnection) {
   }
 
   let initialized = false;
+  let initializationPromise = null;
+  let writeQueue = Promise.resolve();
+
+  function serializeWrite(operation) {
+    const result = writeQueue.then(operation, operation);
+    writeQueue = result.catch(() => {});
+    return result;
+  }
 
   async function initialize() {
     if (initialized) return;
-    await sqliteConnection.query("PRAGMA foreign_keys = ON;");
-    for (const statement of SCHEMA) await sqliteConnection.execute(statement);
-    initialized = true;
+    if (!initializationPromise) {
+      initializationPromise = (async () => {
+        await sqliteConnection.query("PRAGMA foreign_keys = ON;");
+        for (const statement of SCHEMA) await sqliteConnection.execute(statement);
+        initialized = true;
+      })().catch((error) => {
+        initializationPromise = null;
+        throw error;
+      });
+    }
+    await initializationPromise;
   }
 
   async function upsertMany(statement, rows, columns, batchSize = 500) {
@@ -142,19 +158,19 @@ export function createLocalSqliteStore(sqliteConnection) {
     },
     async upsertCandles(rows, timeframe = "Min15") {
       await initialize();
-      await upsertMany(
+      await serializeWrite(() => upsertMany(
         upsertStatement(tablesFor(timeframe).candles, CANDLE_COLUMNS),
         rows,
         CANDLE_COLUMNS
-      );
+      ));
     },
     async upsertHarsi(rows, timeframe = "Min15") {
       await initialize();
-      await upsertMany(
+      await serializeWrite(() => upsertMany(
         upsertStatement(tablesFor(timeframe).harsi, HARSI_COLUMNS),
         rows,
         HARSI_COLUMNS
-      );
+      ));
     },
     async persistCurrentBatch(items, timeframe = "Min15") {
       await initialize();
@@ -166,12 +182,14 @@ export function createLocalSqliteStore(sqliteConnection) {
         operations.push({ statement: candleStatement, values: valuesFor(item.current, CANDLE_COLUMNS) });
         operations.push({ statement: harsiStatement, values: valuesFor(item.currentHarsi, HARSI_COLUMNS) });
       }
-      if (operations.length) await sqliteConnection.executeSet(operations, true);
+      if (operations.length) {
+        await serializeWrite(() => sqliteConnection.executeSet(operations, true));
+      }
     },
     async pruneCandleHistory(timeframe = "Min15") {
       await initialize();
       const tables = tablesFor(timeframe);
-      await sqliteConnection.execute(
+      await serializeWrite(() => sqliteConnection.execute(
         `DELETE FROM ${tables.candles}
          WHERE (symbol, open_time) NOT IN (
            SELECT symbol, open_time FROM (
@@ -180,16 +198,16 @@ export function createLocalSqliteStore(sqliteConnection) {
              FROM ${tables.candles}
            ) ranked WHERE position <= ${HISTORY_CANDLES + 1}
          )`
-      );
+      ));
     },
     async pruneExpiredHarsi(now = new Date(), timeframe = "Min15") {
       await initialize();
       const cutoff = new Date(now.getTime() - RESULT_RETENTION_DAYS * 86400000).toISOString();
       const tables = tablesFor(timeframe);
-      await sqliteConnection.run(
+      await serializeWrite(() => sqliteConnection.run(
         `DELETE FROM ${tables.harsi} WHERE close_time < ?`,
         [cutoff]
-      );
+      ));
     },
     async getLatestHarsiResults(limit = 1000, timeframe = "Min15") {
       await initialize();
