@@ -32,9 +32,11 @@
     .ha-sort-toggle:hover{background:#354862}
     .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;font-size:15px}
     .ha-filter{margin-bottom:16px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
-    .ha-filter-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .ha-filter-fields{display:grid;grid-template-columns:1fr;gap:12px}
+    .ha-filter-row{display:grid;grid-template-columns:.7fr 1fr 1fr;gap:10px;align-items:end}
+    .ha-filter-timeframe{color:#e5edf8;font-size:14px;font-weight:700;text-align:center;padding:12px 2px}
     .ha-filter label{display:block;color:#9fb0c7;font-size:12px;margin-bottom:7px;text-align:center}
-    .ha-filter input{width:100%;min-width:0;background:#172438;color:#e5edf8;border:1px solid #354862;border-radius:10px;padding:12px;text-align:center;font:inherit;font-size:16px;direction:ltr}
+    .ha-filter input{width:100%;min-width:0;background:#172438;color:#e5edf8;border:1px solid #354862;border-radius:10px;padding:12px;text-align:center;font:inherit;font-size:16px;direction:ltr;font-variant-numeric:tabular-nums}
     .ha-filter-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
     .ha-filter-actions button{padding:11px 14px;font-size:14px}
     #filterMessage{margin:10px 0 0;text-align:center;font-size:12px;color:#9fb0c7;min-height:18px}
@@ -69,9 +71,17 @@
   </section>
   <section class="panel">
     <div class="ha-filter" aria-label="محدوده نمایش بر اساس مقدار">
-      <div class="ha-filter-fields">
-        <div><label for="filterFrom">از مقدار</label><input id="filterFrom" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="4" placeholder=""></div>
-        <div><label for="filterTo">تا مقدار</label><input id="filterTo" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="20" placeholder=""></div>
+      <div class="ha-filter-fields" id="haFilterFields">
+        <div class="ha-filter-row" data-timeframe="Min1">
+          <span class="ha-filter-timeframe">1m</span>
+          <div><label for="filterFrom1m">از</label><input id="filterFrom1m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="4"></div>
+          <div><label for="filterTo1m">تا</label><input id="filterTo1m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="20"></div>
+        </div>
+        <div class="ha-filter-row" data-timeframe="Min15">
+          <span class="ha-filter-timeframe">15m</span>
+          <div><label for="filterFrom15m">از</label><input id="filterFrom15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="4"></div>
+          <div><label for="filterTo15m">تا</label><input id="filterTo15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="20"></div>
+        </div>
       </div>
       <div class="ha-filter-actions">
         <button id="applyFilter" type="button">فیلتر</button>
@@ -97,16 +107,20 @@ function updateTimeframeButtons(){
     element.textContent=label+(active?" ✓":"");
   }
 }
-timeframe1m.addEventListener("click",()=>{selectedTimeframes.has("Min1")?selectedTimeframes.delete("Min1"):selectedTimeframes.add("Min1");updateTimeframeButtons();});
-timeframe15m.addEventListener("click",()=>{selectedTimeframes.has("Min15")?selectedTimeframes.delete("Min15"):selectedTimeframes.add("Min15");updateTimeframeButtons();});
+timeframe1m.addEventListener("click",()=>{selectedTimeframes.has("Min1")?selectedTimeframes.delete("Min1"):selectedTimeframes.add("Min1");updateTimeframeButtons();updateFilterRows();});
+timeframe15m.addEventListener("click",()=>{selectedTimeframes.has("Min15")?selectedTimeframes.delete("Min15"):selectedTimeframes.add("Min15");updateTimeframeButtons();updateFilterRows();});
 const message=document.getElementById("message");
 const progressTrack=document.querySelector(".progress-track");
 const progressFill=document.getElementById("progressFill");
 const errorCount=document.getElementById("errorCount");
 const errorEl=document.getElementById("error");
 const rows=document.getElementById("rows");
-const filterFrom=document.getElementById("filterFrom");
-const filterTo=document.getElementById("filterTo");
+const filterInputs={
+  Min1:{from:document.getElementById("filterFrom1m"),to:document.getElementById("filterTo1m")},
+  Min15:{from:document.getElementById("filterFrom15m"),to:document.getElementById("filterTo15m")}
+};
+const filterRows=[...document.querySelectorAll(".ha-filter-row")];
+const filterFields=document.getElementById("haFilterFields");
 const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
 const sort1m=document.getElementById("sort1m");
@@ -117,15 +131,20 @@ function toEnglishDigits(value){
     .replace(/[٠-٩]/g,digit=>String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 }
 function useEnglishDigits(input){input.value=toEnglishDigits(input.value);}
-for(const input of [filterFrom,filterTo]){
+for(const pair of Object.values(filterInputs)) for(const input of [pair.from,pair.to]){
   input.style.textAlign="center";
   input.addEventListener("input",()=>useEnglishDigits(input));
+  input.addEventListener("focus",()=>input.select());
   useEnglishDigits(input);
 }
+function updateFilterRows(){
+  for(const row of filterRows) row.hidden=!selectedTimeframes.has(row.dataset.timeframe);
+}
+updateFilterRows();
 let sortDirections={Min1:"desc",Min15:"desc"};
 let sortBy="Min1";
 let latestResults=[];
-let activeRange=null;
+let activeRanges=null;
 let latestProgress=null;
 const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
 const fmtHa=(value)=>value===null||value===undefined?"—":Number(value).toFixed(1);
@@ -146,8 +165,11 @@ function groupedResults(){
 function renderRows(){
   rows.replaceChildren();
   const all=groupedResults();
-  let results=activeRange
-    ? all.filter(item=>[item.Min1,item.Min15].some(value=>value!==null&&value>=activeRange.min&&value<=activeRange.max))
+  let results=activeRanges
+    ? all.filter(item=>[...selectedTimeframes].some(timeframe=>{
+        const range=activeRanges[timeframe],value=item[timeframe];
+        return range&&value!==null&&value>=range.min&&value<=range.max;
+      }))
     : all;
   const direction=sortDirections[sortBy];
   results=[...results].sort((a,b)=>{
@@ -180,8 +202,9 @@ function renderRows(){
     td.textContent=all.length?"مقداری در این بازه پیدا نشد.":"مقداری برای نمایش وجود ندارد.";
     tr.append(td);rows.append(tr);
   }
-  if(activeRange){
-    filterMessage.textContent="نمایش "+results.length+" از "+all.length+" ارز | بازه: "+fmt(activeRange.min)+" تا "+fmt(activeRange.max);
+  if(activeRanges){
+    const ranges=[...selectedTimeframes].filter(tf=>activeRanges[tf]).map(tf=>(tf==="Min1"?"1m":"15m")+": "+fmt(activeRanges[tf].min)+" تا "+fmt(activeRanges[tf].max));
+    filterMessage.textContent="نمایش "+results.length+" از "+all.length+" ارز | "+ranges.join(" | ");
   }else{
     filterMessage.textContent="فیلتر غیرفعال است؛ "+all.length+" ارز نمایش داده می‌شود.";
   }
@@ -212,25 +235,34 @@ function normalizeNumericInput(value){
     .replace(/٫/g, ".");
 }
 applyFilterButton.addEventListener("click",()=>{
-  if(activeRange){
-    activeRange=null;filterFrom.value="";filterTo.value="";
+  if(activeRanges){
+    activeRanges=null;
     applyFilterButton.textContent="فیلتر";
     applyFilterButton.classList.remove("is-remove");
     applyFilterButton.setAttribute("aria-label","فیلتر");
     renderRows();
     return;
   }
-  const fromText=normalizeNumericInput(filterFrom.value),toText=normalizeNumericInput(filterTo.value);
-  if(fromText===""||toText===""){
-    filterMessage.textContent="لطفاً هر دو مقدار «از» و «تا» را وارد کنید.";
+  if(selectedTimeframes.size===0){
+    filterMessage.textContent="حداقل یک تایم‌فریم را انتخاب کنید.";
     return;
   }
-  const from=Number(fromText),to=Number(toText);
-  if(!Number.isFinite(from)||!Number.isFinite(to)){
-    filterMessage.textContent="هر دو مقدار باید عدد معتبر باشند.";
-    return;
+  const ranges={};
+  for(const timeframe of selectedTimeframes){
+    const pair=filterInputs[timeframe];
+    const fromText=normalizeNumericInput(pair.from.value),toText=normalizeNumericInput(pair.to.value);
+    if(fromText===""||toText===""){
+      filterMessage.textContent="لطفاً مقدار «از» و «تا» را برای "+(timeframe==="Min1"?"1m":"15m")+" وارد کنید.";
+      return;
+    }
+    const from=Number(fromText),to=Number(toText);
+    if(!Number.isFinite(from)||!Number.isFinite(to)){
+      filterMessage.textContent="مقادیر فیلتر باید عدد معتبر باشند.";
+      return;
+    }
+    ranges[timeframe]={min:Math.min(from,to),max:Math.max(from,to)};
   }
-  activeRange={min:Math.min(from,to),max:Math.max(from,to)};
+  activeRanges=ranges;
   applyFilterButton.textContent="حذف فیلتر";
   applyFilterButton.classList.add("is-remove");
   applyFilterButton.setAttribute("aria-label","حذف فیلتر");
