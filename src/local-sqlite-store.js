@@ -39,7 +39,28 @@ const SCHEMA = [
       REFERENCES mexc_futures_ohlcv_15m(symbol, open_time) ON DELETE CASCADE
   )`,
   `CREATE INDEX IF NOT EXISTS idx_local_harsi_time
-    ON mexc_harsi_results_15m(close_time DESC)`
+    ON mexc_harsi_results_15m(close_time DESC)`,
+  `CREATE TABLE IF NOT EXISTS mexc_futures_ohlcv_1m (
+    symbol TEXT NOT NULL, open_time TEXT NOT NULL, close_time TEXT NOT NULL,
+    open_price REAL NOT NULL, high_price REAL NOT NULL, low_price REAL NOT NULL,
+    close_price REAL NOT NULL, volume REAL, amount REAL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbol, open_time)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_local_ohlcv_1m_symbol_time
+    ON mexc_futures_ohlcv_1m(symbol, open_time DESC)`,
+  `CREATE TABLE IF NOT EXISTS mexc_harsi_results_1m (
+    symbol TEXT NOT NULL, open_time TEXT NOT NULL, close_time TEXT NOT NULL,
+    rsi_open REAL, rsi_high REAL, rsi_low REAL, rsi_close REAL,
+    ha_open REAL, ha_high REAL, ha_low REAL, ha_close REAL,
+    scan_match INTEGER, calculation_version TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbol, open_time),
+    FOREIGN KEY (symbol, open_time)
+      REFERENCES mexc_futures_ohlcv_1m(symbol, open_time) ON DELETE CASCADE
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_local_harsi_1m_time
+    ON mexc_harsi_results_1m(close_time DESC)`
 ];
 
 const CANDLE_COLUMNS = [
@@ -51,6 +72,12 @@ const HARSI_COLUMNS = [
   "rsi_close", "ha_open", "ha_high", "ha_low", "ha_close",
   "scan_match", "calculation_version"
 ];
+
+function tablesFor(timeframe = "Min15") {
+  if (timeframe === "Min1") return { candles: "mexc_futures_ohlcv_1m", harsi: "mexc_harsi_results_1m" };
+  if (timeframe === "Min15") return { candles: "mexc_futures_ohlcv_15m", harsi: "mexc_harsi_results_15m" };
+  throw new Error(`Unsupported timeframe: ${timeframe}`);
+}
 
 function valuesFor(row, columns) {
   return columns.map((column) => row[column] ?? null);
@@ -101,37 +128,39 @@ export function createLocalSqliteStore(sqliteConnection) {
     async initialize() {
       await initialize();
     },
-    async getHistoricalCandles(symbol, beforeOpenTime, limit = HISTORY_CANDLES) {
+    async getHistoricalCandles(symbol, beforeOpenTime, limit = HISTORY_CANDLES, timeframe = "Min15") {
       await initialize();
+      const tables = tablesFor(timeframe);
       const result = await sqliteConnection.query(
         `SELECT ${CANDLE_COLUMNS.join(", ")}
-         FROM mexc_futures_ohlcv_15m
+         FROM ${tables.candles}
          WHERE symbol = ? AND open_time < ?
          ORDER BY open_time DESC LIMIT ?`,
         [symbol, beforeOpenTime, Math.min(HISTORY_CANDLES, limit)]
       );
       return (result.values || []).reverse();
     },
-    async upsertCandles(rows) {
+    async upsertCandles(rows, timeframe = "Min15") {
       await initialize();
       await upsertMany(
-        upsertStatement("mexc_futures_ohlcv_15m", CANDLE_COLUMNS),
+        upsertStatement(tablesFor(timeframe).candles, CANDLE_COLUMNS),
         rows,
         CANDLE_COLUMNS
       );
     },
-    async upsertHarsi(rows) {
+    async upsertHarsi(rows, timeframe = "Min15") {
       await initialize();
       await upsertMany(
-        upsertStatement("mexc_harsi_results_15m", HARSI_COLUMNS),
+        upsertStatement(tablesFor(timeframe).harsi, HARSI_COLUMNS),
         rows,
         HARSI_COLUMNS
       );
     },
-    async persistCurrentBatch(items) {
+    async persistCurrentBatch(items, timeframe = "Min15") {
       await initialize();
-      const candleStatement = upsertStatement("mexc_futures_ohlcv_15m", CANDLE_COLUMNS);
-      const harsiStatement = upsertStatement("mexc_harsi_results_15m", HARSI_COLUMNS);
+      const tables = tablesFor(timeframe);
+      const candleStatement = upsertStatement(tables.candles, CANDLE_COLUMNS);
+      const harsiStatement = upsertStatement(tables.harsi, HARSI_COLUMNS);
       const operations = [];
       for (const item of items) {
         operations.push({ statement: candleStatement, values: valuesFor(item.current, CANDLE_COLUMNS) });
@@ -139,29 +168,32 @@ export function createLocalSqliteStore(sqliteConnection) {
       }
       if (operations.length) await sqliteConnection.executeSet(operations, true);
     },
-    async pruneCandleHistory() {
+    async pruneCandleHistory(timeframe = "Min15") {
       await initialize();
+      const tables = tablesFor(timeframe);
       await sqliteConnection.execute(
-        `DELETE FROM mexc_futures_ohlcv_15m
+        `DELETE FROM ${tables.candles}
          WHERE (symbol, open_time) NOT IN (
            SELECT symbol, open_time FROM (
              SELECT symbol, open_time,
                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY open_time DESC) AS position
-             FROM mexc_futures_ohlcv_15m
+             FROM ${tables.candles}
            ) ranked WHERE position <= ${HISTORY_CANDLES + 1}
          )`
       );
     },
-    async pruneExpiredHarsi(now = new Date()) {
+    async pruneExpiredHarsi(now = new Date(), timeframe = "Min15") {
       await initialize();
       const cutoff = new Date(now.getTime() - RESULT_RETENTION_DAYS * 86400000).toISOString();
+      const tables = tablesFor(timeframe);
       await sqliteConnection.run(
-        "DELETE FROM mexc_harsi_results_15m WHERE close_time < ?",
+        `DELETE FROM ${tables.harsi} WHERE close_time < ?`,
         [cutoff]
       );
     },
-    async getLatestHarsiResults(limit = 1000) {
+    async getLatestHarsiResults(limit = 1000, timeframe = "Min15") {
       await initialize();
+      const tables = tablesFor(timeframe);
       const result = await sqliteConnection.query(
         `SELECT symbol, open_time, close_time, ha_close, ha_open, ha_high, ha_low,
                 rsi_close, scan_match, calculation_version
@@ -169,7 +201,7 @@ export function createLocalSqliteStore(sqliteConnection) {
            SELECT symbol, open_time, close_time, ha_close, ha_open, ha_high, ha_low,
                   rsi_close, scan_match, calculation_version,
                   ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY open_time DESC) AS position
-           FROM mexc_harsi_results_15m
+           FROM ${tables.harsi}
          ) latest
          WHERE position = 1
          ORDER BY close_time DESC, symbol ASC LIMIT ?`,
