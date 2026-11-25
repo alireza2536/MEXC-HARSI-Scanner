@@ -129,7 +129,7 @@ app.whenReady().then(async () => {
   store = createLocalSqliteStore({
     execute: async (sql) => db.exec(sql),
     run: async (sql, values = []) => db.prepare(sql).run(...values),
-    query: async (sql, values = []) => ({ values: db.prepare(sql).all(...values) }),
+    query: async (sql, values = []) => { const statement = db.prepare(sql); return { values: statement.reader ? statement.all(...values) : (statement.run(...values), []) }; },
     executeSet: async (operations, transaction = true) => {
       const work = () => { for (const item of operations) db.prepare(item.statement).run(...(item.values || [])); };
       if (transaction) db.transaction(work)(); else work();
