@@ -99,7 +99,6 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
           timeframe: row.timeframe,
           haClose: row.ha_close === null || row.ha_close === undefined ? null : Number(row.ha_close),
           vwapDaily: row.vwap_daily === null || row.vwap_daily === undefined ? null : Number(row.vwap_daily),
-          vwapRolling: row.vwap_rolling === null || row.vwap_rolling === undefined ? null : Number(row.vwap_rolling),
           candleOpenTime: row.open_time
         }))
       };
