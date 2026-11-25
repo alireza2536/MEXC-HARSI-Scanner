@@ -2,7 +2,7 @@ import { calculateHarsi } from "./harsi.js";
 import { hasCompleteCandleWindow } from "./candle-history-cache.js";
 import { calculateDailyVwap } from "./vwap.js";
 
-const TIMEFRAME_SECONDS = Object.freeze({ Min1: 60, Min15: 900, Min60: 3600 });
+const TIMEFRAME_SECONDS = Object.freeze({ Min5: 300, Min55: 900, Min60: 3600 });
 const HISTORY_CANDLES = 2000;
 const PERSISTENCE_BATCH_SIZE = 10;
 
@@ -52,7 +52,7 @@ async function getHistory(store, mexc, symbol, currentOpen, signal, timeframe, c
  * Local scanner. The Android caller owns scan lifecycle and keeps a native
  * foreground service active for the duration of each user-started scan.
  */
-export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal, timeframe = "Min15", workerCount = 5 } = {}) {
+export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal, timeframe = "Min55", workerCount = 5 } = {}) {
   if (!mexc || !store) throw new TypeError("MEXC client and local store are required.");
   if (!Number.isFinite(maxPrice) || maxPrice <= 0) {
     throw new TypeError("The current scanner maxPrice setting must be provided.");
@@ -164,20 +164,20 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
         if (!currentHarsi) throw new Error("HARSI value is not ready for the current candle.");
 
         let dailyCandles = candlesForIndicators;
-        if (timeframe !== "Min15") {
-          const dailyCandleSeconds = TIMEFRAME_SECONDS.Min15;
+        if (timeframe !== "Min55") {
+          const dailyCandleSeconds = TIMEFRAME_SECONDS.Min55;
           const dailyCurrentOpen = Math.floor(nowSeconds / dailyCandleSeconds) * dailyCandleSeconds;
           const dailyHistory = await getHistory(
-            store, mexc, contract.symbol, dailyCurrentOpen, signal, "Min15", dailyCandleSeconds
+            store, mexc, contract.symbol, dailyCurrentOpen, signal, "Min55", dailyCandleSeconds
           );
           if (dailyHistory.cacheHit) historyCacheHits += 1;
           else historyBackfills += 1;
           const dailyCurrentResponse = await mexc.getCandles(
-            contract.symbol, "Min15", dailyCurrentOpen, nowSeconds
+            contract.symbol, "Min55", dailyCurrentOpen, nowSeconds
           );
           throwIfAborted();
           const dailyCurrent = currentCandleFrom(dailyCurrentResponse, dailyCurrentOpen);
-          if (!dailyCurrent) throw new Error("MEXC did not return the currently forming Min15 candle for daily VWAP.");
+          if (!dailyCurrent) throw new Error("MEXC did not return the currently forming Min55 candle for daily VWAP.");
           dailyCandles = [...dailyHistory.candles, dailyCurrent];
         }
         const currentVwap = calculateDailyVwap(dailyCandles, serverNowMs);
