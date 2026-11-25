@@ -137,7 +137,7 @@
     </div>
     <div class="table-wrap">
       <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col1m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"></colgroup><thead><tr><th>نام ارز</th><th id="heading1m">1m <button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></th><th id="heading15m">15m <button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></th><th id="heading1h">1h <button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></th></tr></thead>
-      <tbody id="rows"><tr><td colspan="3" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
+      <tbody id="rows"><tr><td colspan="4" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
 </main>
@@ -320,7 +320,7 @@ function renderRows(){
   filterMessage.textContent=numberFormat.format(results.length)+" ارز دارای شرط";
 }
 function getExportRows(filteredOnly){
-  const visibleTimeframes=["Min1","Min15"].filter(timeframe=>selectedTimeframes.has(timeframe));
+  const visibleTimeframes=["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe));
   const all=groupedResults();
   let results=filteredOnly&&activeRanges
     ? all.filter(item=>visibleTimeframes.every(timeframe=>{
@@ -425,6 +425,7 @@ function sortColumn(timeframe){
   sortBy=timeframe;
   updateSortButton(sort1m,"Min1");
   updateSortButton(sort15m,"Min15");
+  updateSortButton(sort1h,"Min60");
   renderRows();
 }
 sort1m.addEventListener("click",()=>sortColumn("Min1"));
