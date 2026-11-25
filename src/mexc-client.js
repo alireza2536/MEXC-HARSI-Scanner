@@ -194,8 +194,8 @@ export class MexcClient {
   }
 
   async getCandles(symbol, interval, startSeconds, endSeconds) {
-    if (!["Min1", "Min15"].includes(interval)) throw new Error(`Unsupported MEXC interval: ${interval}`);
-    const intervalSeconds = interval === "Min1" ? 60 : 900;
+    if (!["Min1", "Min15", "Min60"].includes(interval)) throw new Error(`Unsupported MEXC interval: ${interval}`);
+    const intervalSeconds = interval === "Min1" ? 60 : interval === "Min15" ? 900 : 3600;
     const data = await this.#get(
       `/api/v1/contract/kline/${encodeURIComponent(symbol)}`,
       { interval, start: startSeconds, end: endSeconds }
@@ -239,5 +239,9 @@ export class MexcClient {
 
   async get15mCandles(symbol, startSeconds, endSeconds) {
     return this.getCandles(symbol, "Min15", startSeconds, endSeconds);
+  }
+
+  async get1hCandles(symbol, startSeconds, endSeconds) {
+    return this.getCandles(symbol, "Min60", startSeconds, endSeconds);
   }
 }
