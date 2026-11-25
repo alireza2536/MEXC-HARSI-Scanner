@@ -70,7 +70,7 @@ test("latest HA query qualifies sort columns after joining VWAP", async () => {
   const store = createLocalSqliteStore(db);
   await store.getLatestHarsiResults(1000, "Min1");
   const sql = db.queries.at(-1).statement;
-  assert.match(sql, /ORDER BY latest\\.close_time DESC, latest\\.symbol ASC LIMIT \\?/);
+  assert.match(sql, /ORDER BY latest\.close_time DESC, latest\.symbol ASC LIMIT \?/);
 });
 
 test("local SQLite store uses bounded native batches and parameterized retention", async () => {
