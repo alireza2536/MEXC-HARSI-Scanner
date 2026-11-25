@@ -75,7 +75,7 @@
       </div>
     </div>
     <div class="timeframe-picker" aria-label="انتخاب تایم‌فریم">
-      <button id="timeframe1m" type="button" aria-pressed="false">۱ دقیقه</button>
+      <button id="timeframe5m" type="button" aria-pressed="false">۵ دقیقه</button>
       <button id="timeframe15m" type="button" aria-pressed="false">۱۵ دقیقه</button>
       <button id="timeframe1h" type="button" aria-pressed="false">۱ ساعت</button>
     </div>
@@ -98,13 +98,13 @@
           <span>از</span>
           <span>تا</span>
         </div>
-        <div class="ha-filter-row" data-timeframe="Min1">
-          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min1" aria-pressed="false">1m</button>
-          <div><input id="filterFrom1m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
-          <div><input id="filterTo1m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
+        <div class="ha-filter-row" data-timeframe="Min5">
+          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min5" aria-pressed="false">5m</button>
+          <div><input id="filterFrom5m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
+          <div><input id="filterTo5m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
-        <div class="ha-filter-row" data-timeframe="Min15">
-          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min15" aria-pressed="false">15m</button>
+        <div class="ha-filter-row" data-timeframe="Min55">
+          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min55" aria-pressed="false">15m</button>
           <div><input id="filterFrom15m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
           <div><input id="filterTo15m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
@@ -136,14 +136,14 @@
       </div>
     </div>
     <div class="table-wrap">
-      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col1m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"><col id="colVwapDaily" style="width:20%"></colgroup><thead><tr><th>نام ارز</th><th id="heading1m"><div class="results-heading"><span>۱ دقیقه</span><button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th><th id="headingVwapDaily">VWAP</th></tr></thead>
+      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col5m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"><col id="colVwapDaily" style="width:20%"></colgroup><thead><tr><th>نام ارز</th><th id="heading5m"><div class="results-heading"><span>۵ دقیقه</span><button id="sort5m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 5m" title="مرتب‌سازی نزولی 5m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th><th id="headingVwapDaily">VWAP</th></tr></thead>
       <tbody id="rows"><tr><td colspan="5" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
 </main>
 <script>
 const button=document.getElementById("refresh");
-const timeframe1m=document.getElementById("timeframe1m");
+const timeframe5m=document.getElementById("timeframe5m");
 const timeframe15m=document.getElementById("timeframe15m");
 const timeframe1h=document.getElementById("timeframe1h");
 const selectedTimeframes=new Set();
@@ -164,7 +164,7 @@ function toggleTimeframe(value){
   renderRows();
 }
 function updateTimeframeButtons(){
-  for(const [element,value,label] of [[timeframe1m,"Min1","۱ دقیقه"],[timeframe15m,"Min15","۱۵ دقیقه"],[timeframe1h,"Min60","۱ ساعت"]]){
+  for(const [element,value,label] of [[timeframe5m,"Min5","۵ دقیقه"],[timeframe15m,"Min55","۱۵ دقیقه"],[timeframe1h,"Min60","۱ ساعت"]]){
     const active=selectedTimeframes.has(value);
     element.classList.toggle("active",active);
     element.setAttribute("aria-pressed",String(active));
@@ -189,8 +189,8 @@ for(const element of document.querySelectorAll(".ha-filter-timeframe[data-timefr
   });
 }
 updateFilterTimeframeButtons();
-timeframe1m.addEventListener("click",()=>toggleTimeframe("Min1"));
-timeframe15m.addEventListener("click",()=>toggleTimeframe("Min15"));
+timeframe5m.addEventListener("click",()=>toggleTimeframe("Min5"));
+timeframe15m.addEventListener("click",()=>toggleTimeframe("Min55"));
 timeframe1h.addEventListener("click",()=>toggleTimeframe("Min60"));
 const message=document.getElementById("message");
 const progressTrack=document.querySelector(".progress-track");
@@ -199,24 +199,24 @@ const errorCount=document.getElementById("errorCount");
 const errorEl=document.getElementById("error");
 const rows=document.getElementById("rows");
 const resultsTable=document.getElementById("resultsTable");
-const heading1m=document.getElementById("heading1m");
+const heading5m=document.getElementById("heading5m");
 const heading15m=document.getElementById("heading15m");
 const coinCol=document.getElementById("coinCol");
-const col1m=document.getElementById("col1m");
+const col5m=document.getElementById("col5m");
 const col15m=document.getElementById("col15m");
 const heading1h=document.getElementById("heading1h");
 const col1h=document.getElementById("col1h");
 const colVwapDaily=document.getElementById("colVwapDaily");
 const filterInputs={
-  Min1:{from:document.getElementById("filterFrom1m"),to:document.getElementById("filterTo1m")},
-  Min15:{from:document.getElementById("filterFrom15m"),to:document.getElementById("filterTo15m")},
+  Min5:{from:document.getElementById("filterFrom5m"),to:document.getElementById("filterTo5m")},
+  Min55:{from:document.getElementById("filterFrom15m"),to:document.getElementById("filterTo15m")},
   Min60:{from:document.getElementById("filterFrom1h"),to:document.getElementById("filterTo1h")}
 };
 const filterRows=[...document.querySelectorAll(".ha-filter-row")];
 const filterFields=document.getElementById("haFilterFields");
 const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
-const sort1m=document.getElementById("sort1m");
+const sort5m=document.getElementById("sort5m");
 const sort15m=document.getElementById("sort15m");
 const sort1h=document.getElementById("sort1h");
 function toEnglishDigits(value){
@@ -237,8 +237,8 @@ function updateFilterRows(){
   for(const row of filterRows) if(row.dataset.timeframe) row.hidden=false;
 }
 updateFilterRows();
-let sortDirections={Min1:"desc",Min15:"desc",Min60:"desc"};
-let sortBy="Min1";
+let sortDirections={Min5:"desc",Min55:"desc",Min60:"desc"};
+let sortBy="Min5";
 let latestResults=[];
 let activeRanges=null;
 let latestProgress=null;
@@ -250,9 +250,9 @@ function groupedResults(){
     // Normalize MEXC symbol variants before joining timeframe results.
     // Consume the optional separator with USDT (e.g. BTC_USDT -> BTC).
     const symbol=String(item.symbol||"").trim().toUpperCase().replace(/[_-]?USDT$/i,"").replace(/[_-]/g,"");
-    if(!symbol||!["Min1","Min15","Min60"].includes(item.timeframe)) continue;
+    if(!symbol||!["Min5","Min55","Min60"].includes(item.timeframe)) continue;
     if(!bySymbol.has(symbol)) bySymbol.set(symbol,{
-      symbol,Min1:null,Min15:null,Min60:null,vwapDaily:null
+      symbol,Min5:null,Min55:null,Min60:null,vwapDaily:null
     });
     const row=bySymbol.get(symbol);
     const timeframe=item.timeframe;
@@ -269,22 +269,22 @@ function groupedResults(){
 }
 function updateResultsColumns(){
   const displayTimeframes=new Set([...selectedTimeframes,...filterTimeframes]);
-  const show1m=displayTimeframes.has("Min1");
-  const show15m=displayTimeframes.has("Min15");
+  const show5m=displayTimeframes.has("Min5");
+  const show15m=displayTimeframes.has("Min55");
   const show1h=displayTimeframes.has("Min60");
-  heading1m.hidden=!show1m; col1m.hidden=!show1m;
+  heading5m.hidden=!show5m; col5m.hidden=!show5m;
   heading15m.hidden=!show15m; col15m.hidden=!show15m;
   heading1h.hidden=!show1h; col1h.hidden=!show1h;
-  const columnCount=2+Number(show1m)+Number(show15m)+Number(show1h);
+  const columnCount=2+Number(show5m)+Number(show15m)+Number(show1h);
   // Keep the currency column anchored in its original slot and width.
   const width=(100/columnCount).toFixed(3)+"%";
   coinCol.style.width=width;
-  col1m.style.width=width;
+  col5m.style.width=width;
   col15m.style.width=width;
   col1h.style.width=width;
   colVwapDaily.style.width=width;
   if(!displayTimeframes.has(sortBy)){
-    sortBy=show1m?"Min1":show15m?"Min15":show1h?"Min60":"Min1";
+    sortBy=show5m?"Min5":show15m?"Min55":show1h?"Min60":"Min5";
   }
 }
 function renderRows(){
@@ -292,7 +292,7 @@ function renderRows(){
   rows.replaceChildren();
   const visibleTimeframes=activeRanges
     ? Object.keys(activeRanges)
-    : ["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
+    : ["Min5","Min55","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
   const all=groupedResults();
   let results=activeRanges
     ? all.filter(item=>visibleTimeframes.every(timeframe=>{
@@ -316,7 +316,7 @@ function renderRows(){
     td.className="coin-card-cell";
     const card=document.createElement("div");
     card.className="coin-card"+(index%2===0?" alt":"");
-    const visibleTimeframes=["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
+    const visibleTimeframes=["Min5","Min55","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
     card.style.gridTemplateColumns="repeat("+(visibleTimeframes.length+2)+",minmax(0,1fr))";
     const coinCell=document.createElement("span");
     coinCell.textContent=item.symbol;
@@ -347,7 +347,7 @@ function renderRows(){
 function getExportRows(filteredOnly){
   const visibleTimeframes=activeRanges
     ? Object.keys(activeRanges)
-    : ["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
+    : ["Min5","Min55","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
   const all=groupedResults();
   let results=filteredOnly&&activeRanges
     ? all.filter(item=>visibleTimeframes.every(timeframe=>{
@@ -368,13 +368,13 @@ function getExportRows(filteredOnly){
 async function exportResults(filteredOnly, chosenName){
   const visibleTimeframes=activeRanges
     ? Object.keys(activeRanges)
-    : ["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
+    : ["Min5","Min55","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
   const results=getExportRows(filteredOnly);
   if(!results.length){
     filterMessage.textContent="نتیجه‌ای برای خروجی گرفتن وجود ندارد.";
     return;
   }
-  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":tf==="Min15"?"۱۵ دقیقه":"۱ ساعت"),"VWAP"];
+  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min5"?"۵ دقیقه":tf==="Min55"?"۱۵ دقیقه":"۱ ساعت"),"VWAP"];
   const lines=[headings.join("\t"),...results.map(item=>[
     item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1)),item.vwapDaily===null?"—":fmt(item.vwapDaily)
   ].join("\t"))];
@@ -441,23 +441,23 @@ saveFileName.addEventListener("keydown",event=>{
 function updateSortButton(button,timeframe){
   const direction=sortDirections[timeframe];
   button.textContent=direction==="asc"?"↑":"↓";
-  const label="مرتب‌سازی "+(direction==="asc"?"صعودی":"نزولی")+" "+(timeframe==="Min1"?"1m":timeframe==="Min15"?"15m":"1h");
+  const label="مرتب‌سازی "+(direction==="asc"?"صعودی":"نزولی")+" "+(timeframe==="Min5"?"5m":timeframe==="Min55"?"15m":"1h");
   button.setAttribute("aria-label",label);
   button.title=label;
 }
 function sortColumn(timeframe){
   if(sortBy===timeframe) sortDirections[timeframe]=sortDirections[timeframe]==="asc"?"desc":"asc";
   sortBy=timeframe;
-  updateSortButton(sort1m,"Min1");
-  updateSortButton(sort15m,"Min15");
+  updateSortButton(sort5m,"Min5");
+  updateSortButton(sort15m,"Min55");
   updateSortButton(sort1h,"Min60");
   renderRows();
 }
-sort1m.addEventListener("click",()=>sortColumn("Min1"));
-sort15m.addEventListener("click",()=>sortColumn("Min15"));
+sort5m.addEventListener("click",()=>sortColumn("Min5"));
+sort15m.addEventListener("click",()=>sortColumn("Min55"));
 sort1h.addEventListener("click",()=>sortColumn("Min60"));
-updateSortButton(sort1m,"Min1");
-updateSortButton(sort15m,"Min15");
+updateSortButton(sort5m,"Min5");
+updateSortButton(sort15m,"Min55");
 updateSortButton(sort1h,"Min60");
 updateResultsColumns();
 function normalizeNumericInput(value){
@@ -485,7 +485,7 @@ applyFilterButton.addEventListener("click",()=>{
     const pair=filterInputs[timeframe];
     const fromText=normalizeNumericInput(pair.from.value),toText=normalizeNumericInput(pair.to.value);
     if(fromText===""||toText===""){
-      filterMessage.textContent="لطفاً مقدار «از» و «تا» را برای "+(timeframe==="Min1"?"1m":timeframe==="Min15"?"15m":"1h")+" وارد کنید.";
+      filterMessage.textContent="لطفاً مقدار «از» و «تا» را برای "+(timeframe==="Min5"?"5m":timeframe==="Min55"?"15m":"1h")+" وارد کنید.";
       return;
     }
     const from=Number(fromText),to=Number(toText);
