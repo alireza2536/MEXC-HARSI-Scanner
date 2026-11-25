@@ -40,16 +40,16 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_local_harsi_time
     ON mexc_harsi_results_15m(close_time DESC)`,
-  `CREATE TABLE IF NOT EXISTS mexc_futures_ohlcv_1m (
+  `CREATE TABLE IF NOT EXISTS mexc_futures_ohlcv_5m (
     symbol TEXT NOT NULL, open_time TEXT NOT NULL, close_time TEXT NOT NULL,
     open_price REAL NOT NULL, high_price REAL NOT NULL, low_price REAL NOT NULL,
     close_price REAL NOT NULL, volume REAL, amount REAL,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (symbol, open_time)
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_local_ohlcv_1m_symbol_time
-    ON mexc_futures_ohlcv_1m(symbol, open_time DESC)`,
-  `CREATE TABLE IF NOT EXISTS mexc_harsi_results_1m (
+  `CREATE INDEX IF NOT EXISTS idx_local_ohlcv_5m_symbol_time
+    ON mexc_futures_ohlcv_5m(symbol, open_time DESC)`,
+  `CREATE TABLE IF NOT EXISTS mexc_harsi_results_5m (
     symbol TEXT NOT NULL, open_time TEXT NOT NULL, close_time TEXT NOT NULL,
     rsi_open REAL, rsi_high REAL, rsi_low REAL, rsi_close REAL,
     ha_open REAL, ha_high REAL, ha_low REAL, ha_close REAL,
@@ -57,10 +57,10 @@ const SCHEMA = [
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (symbol, open_time),
     FOREIGN KEY (symbol, open_time)
-      REFERENCES mexc_futures_ohlcv_1m(symbol, open_time) ON DELETE CASCADE
+      REFERENCES mexc_futures_ohlcv_5m(symbol, open_time) ON DELETE CASCADE
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_local_harsi_1m_time
-    ON mexc_harsi_results_1m(close_time DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_local_harsi_5m_time
+    ON mexc_harsi_results_5m(close_time DESC)`,
   `CREATE TABLE IF NOT EXISTS mexc_futures_ohlcv_1h (
     symbol TEXT NOT NULL, open_time TEXT NOT NULL, close_time TEXT NOT NULL,
     open_price REAL NOT NULL, high_price REAL NOT NULL, low_price REAL NOT NULL,
@@ -105,9 +105,9 @@ const HARSI_COLUMNS = [
   "scan_match", "calculation_version"
 ];
 
-function tablesFor(timeframe = "Min15") {
-  if (timeframe === "Min1") return { candles: "mexc_futures_ohlcv_1m", harsi: "mexc_harsi_results_1m" };
-  if (timeframe === "Min15") return { candles: "mexc_futures_ohlcv_15m", harsi: "mexc_harsi_results_15m" };
+function tablesFor(timeframe = "Min55") {
+  if (timeframe === "Min5") return { candles: "mexc_futures_ohlcv_5m", harsi: "mexc_harsi_results_5m" };
+  if (timeframe === "Min55") return { candles: "mexc_futures_ohlcv_15m", harsi: "mexc_harsi_results_15m" };
   if (timeframe === "Min60") return { candles: "mexc_futures_ohlcv_1h", harsi: "mexc_harsi_results_1h" };
   throw new Error(`Unsupported timeframe: ${timeframe}`);
 }
@@ -150,6 +150,13 @@ export function createLocalSqliteStore(sqliteConnection) {
       initializationPromise = (async () => {
         await sqliteConnection.query("PRAGMA foreign_keys = ON;");
         for (const statement of SCHEMA) await sqliteConnection.execute(statement);
+        // Remove obsolete 1-minute data after the replacement 5-minute tables exist.
+        const legacyMinuteColumns = await sqliteConnection.query("PRAGMA table_info(mexc_futures_ohlcv_1m);");
+        if ((legacyMinuteColumns.values || []).length) {
+          await sqliteConnection.execute("DROP TABLE IF EXISTS mexc_harsi_results_1m;");
+          await sqliteConnection.execute("DROP TABLE IF EXISTS mexc_futures_ohlcv_1m;");
+          await sqliteConnection.execute("DELETE FROM mexc_vwap_values WHERE timeframe = 'Min1';");
+        }
         // Rebuild legacy VWAP storage once, dropping rolling VWAP values while preserving daily history.
         const vwapColumns = await sqliteConnection.query("PRAGMA table_info(mexc_vwap_values);");
         if ((vwapColumns.values || []).some((column) => column.name === "vwap_rolling")) {
@@ -195,7 +202,7 @@ export function createLocalSqliteStore(sqliteConnection) {
     async initialize() {
       await initialize();
     },
-    async getHistoricalCandles(symbol, beforeOpenTime, limit = HISTORY_CANDLES, timeframe = "Min15") {
+    async getHistoricalCandles(symbol, beforeOpenTime, limit = HISTORY_CANDLES, timeframe = "Min55") {
       await initialize();
       const tables = tablesFor(timeframe);
       const result = await sqliteConnection.query(
@@ -207,7 +214,7 @@ export function createLocalSqliteStore(sqliteConnection) {
       );
       return (result.values || []).reverse();
     },
-    async upsertCandles(rows, timeframe = "Min15") {
+    async upsertCandles(rows, timeframe = "Min55") {
       await initialize();
       await serializeWrite(() => upsertMany(
         upsertStatement(tablesFor(timeframe).candles, CANDLE_COLUMNS),
@@ -215,7 +222,7 @@ export function createLocalSqliteStore(sqliteConnection) {
         CANDLE_COLUMNS
       ));
     },
-    async upsertHarsi(rows, timeframe = "Min15") {
+    async upsertHarsi(rows, timeframe = "Min55") {
       await initialize();
       await serializeWrite(() => upsertMany(
         upsertStatement(tablesFor(timeframe).harsi, HARSI_COLUMNS),
@@ -223,7 +230,7 @@ export function createLocalSqliteStore(sqliteConnection) {
         HARSI_COLUMNS
       ));
     },
-    async persistCurrentBatch(items, timeframe = "Min15") {
+    async persistCurrentBatch(items, timeframe = "Min55") {
       await initialize();
       const tables = tablesFor(timeframe);
       const candleStatement = upsertStatement(tables.candles, CANDLE_COLUMNS);
@@ -248,7 +255,7 @@ export function createLocalSqliteStore(sqliteConnection) {
         await serializeWrite(() => sqliteConnection.executeSet(operations, true));
       }
     },
-    async pruneCandleHistory(timeframe = "Min15") {
+    async pruneCandleHistory(timeframe = "Min55") {
       await initialize();
       const tables = tablesFor(timeframe);
       await serializeWrite(() => sqliteConnection.execute(
@@ -262,7 +269,7 @@ export function createLocalSqliteStore(sqliteConnection) {
          )`
       ));
     },
-    async pruneExpiredHarsi(now = new Date(), timeframe = "Min15") {
+    async pruneExpiredHarsi(now = new Date(), timeframe = "Min55") {
       await initialize();
       const cutoff = new Date(now.getTime() - RESULT_RETENTION_DAYS * 86400000).toISOString();
       const tables = tablesFor(timeframe);
@@ -271,7 +278,7 @@ export function createLocalSqliteStore(sqliteConnection) {
         [cutoff]
       ));
     },
-    async getLatestHarsiResults(limit = 1000, timeframe = "Min15") {
+    async getLatestHarsiResults(limit = 1000, timeframe = "Min55") {
       await initialize();
       const tables = tablesFor(timeframe);
       const result = await sqliteConnection.query(
