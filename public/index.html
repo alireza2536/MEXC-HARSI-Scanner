@@ -174,9 +174,8 @@ function renderRows(){
   }
 }
 function updateSortButton(button,timeframe){
-  const active=sortBy===timeframe;
   const direction=sortDirections[timeframe];
-  button.textContent=active?(direction==="asc"?"↑":"↓"):"↕";
+  button.textContent=direction==="asc"?"↑":"↓";
   const label="مرتب‌سازی "+(direction==="asc"?"صعودی":"نزولی")+" "+(timeframe==="Min1"?"1m":"15m");
   button.setAttribute("aria-label",label);
   button.title=label;
