@@ -118,7 +118,7 @@ function updateTimeframeButtons(){
   }
 }
 timeframe1m.addEventListener("click",()=>{selectedTimeframes.has("Min1")?selectedTimeframes.delete("Min1"):selectedTimeframes.add("Min1");updateTimeframeButtons();updateFilterRows();renderRows();});
-timeframe15m.addEventListener("click",()=>{selectedTimeframes.has("Min15")?selectedTimeframes.delete("Min15"):selectedTimeframes.add("Min15");updateTimeframeButtons();updateFilterRows();});
+timeframe15m.addEventListener("click",()=>{selectedTimeframes.has("Min15")?selectedTimeframes.delete("Min15"):selectedTimeframes.add("Min15");updateTimeframeButtons();updateFilterRows();renderRows();});
 const message=document.getElementById("message");
 const progressTrack=document.querySelector(".progress-track");
 const progressFill=document.getElementById("progressFill");
@@ -184,10 +184,10 @@ function updateResultsColumns(){
   heading1m.hidden=!show1m; col1m.hidden=!show1m;
   heading15m.hidden=!show15m; col15m.hidden=!show15m;
   const columnCount=1+Number(show1m)+Number(show15m);
-  const width=(100/columnCount)+"%";
-  coinCol.style.width=width;
-  if(show1m) col1m.style.width=width;
-  if(show15m) col15m.style.width=width;
+  // Keep the currency column anchored in its original slot and width.
+  coinCol.style.width="33.333%";
+  col1m.style.width="33.333%";
+  col15m.style.width="33.333%";
   if(!selectedTimeframes.has(sortBy)){
     sortBy=show1m?"Min1":show15m?"Min15":"Min1";
   }
@@ -223,15 +223,17 @@ function renderRows(){
   for(const [index,item] of results.entries()){
     const tr=document.createElement("tr");
     const td=document.createElement("td");
-    td.colSpan=1+visibleTimeframes.length;
+    td.colSpan=3;
     td.className="coin-card-cell";
     const card=document.createElement("div");
     card.className="coin-card"+(index%2===0?" alt":"");
-    card.style.gridTemplateColumns="repeat("+td.colSpan+",minmax(0,1fr))";
-    const values=[item.symbol,...visibleTimeframes.map(timeframe=>fmtHa(item[timeframe]))];
-    for(const value of values){
+    card.style.gridTemplateColumns="repeat(3,minmax(0,1fr))";
+    const coinCell=document.createElement("span");
+    coinCell.textContent=item.symbol;
+    card.append(coinCell);
+    for(const timeframe of ["Min1","Min15"]){
       const cell=document.createElement("span");
-      cell.textContent=value;
+      cell.textContent=selectedTimeframes.has(timeframe)?fmtHa(item[timeframe]):"";
       card.append(cell);
     }
     td.append(card);
@@ -240,7 +242,7 @@ function renderRows(){
   }
   if(!results.length){
     const tr=document.createElement("tr");
-    const td=document.createElement("td");td.colSpan=1+visibleTimeframes.length;td.className="muted";
+    const td=document.createElement("td");td.colSpan=3;td.className="muted";
     td.textContent=all.length?"مقداری در این بازه پیدا نشد.":"مقداری برای نمایش وجود ندارد.";
     tr.append(td);rows.append(tr);
   }
