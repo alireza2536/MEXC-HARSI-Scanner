@@ -105,8 +105,7 @@
     <div class="export-menu-wrap">
       <button id="exportMenuToggle" type="button" aria-label="منوی خروجی" title="منوی خروجی" aria-expanded="false" aria-controls="exportMenu">⋮</button>
       <div id="exportMenu" class="export-menu" hidden>
-        <button id="exportFiltered" type="button">خروجی TXT نتایج فیلترشده</button>
-        <button id="exportAll" type="button">خروجی TXT همه نتایج</button>
+        <button id="exportFiltered" type="button">ذخیره نتایج فیلترشده</button>
       </div>
     </div>
     <div class="table-wrap">
@@ -336,7 +335,7 @@ document.addEventListener("click",event=>{
 });
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeExportMenu();});
 document.getElementById("exportFiltered").addEventListener("click",()=>{closeExportMenu();exportResults(true);});
-document.getElementById("exportAll").addEventListener("click",()=>{closeExportMenu();exportResults(false);});
+
 function updateSortButton(button,timeframe){
   const direction=sortDirections[timeframe];
   button.textContent=direction==="asc"?"↑":"↓";
