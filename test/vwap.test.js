@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateVwapPair, DEFAULT_ROLLING_VWAP_CANDLES } from "../src/vwap.js";
+import { calculateVwapPair, DEFAULT_ROLLING_VWAP_CANDLES, ROLLING_VWAP_CANDLES_BY_TIMEFRAME } from "../src/vwap.js";
 
 function candle(openTime, high, low, close, volume) {
   return {
@@ -51,4 +51,13 @@ test("VWAP returns null when all candle volumes are zero or invalid", () => {
 
 test("rolling candle count must be a positive integer", () => {
   assert.throws(() => calculateVwapPair([], Date.now(), 0), RangeError);
+});
+
+test("rolling VWAP windows represent 24 hours for each supported timeframe", () => {
+  assert.deepEqual(ROLLING_VWAP_CANDLES_BY_TIMEFRAME, {
+    Min1: 1440,
+    Min15: 96,
+    Min60: 24
+  });
+  assert.equal(DEFAULT_ROLLING_VWAP_CANDLES, 96);
 });
