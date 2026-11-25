@@ -34,7 +34,7 @@
     .ha-filter{margin-bottom:16px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
     .ha-filter-fields{display:grid;grid-template-columns:1fr;gap:12px}
     .ha-filter-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center}
-    .ha-filter-timeframe{display:flex;align-items:center;justify-content:center;background:#172438;border:1px solid #354862;border-radius:10px;color:#e5edf8;font-size:14px;font-weight:700;text-align:center;padding:0 2px;height:46px;box-sizing:border-box;transform:none}.ha-filter-timeframe.active{background:#1D4ED8;border-color:#1D4ED8;color:#fff}
+    .ha-filter-timeframe{display:flex;align-items:center;justify-content:center;width:100%;background:#172438;border:1px solid #354862;border-radius:10px;color:#e5edf8;font-size:14px;font-weight:700;text-align:center;padding:0;height:46px;box-sizing:border-box;cursor:pointer}.ha-filter-timeframe.active{background:#1D4ED8;border-color:#1D4ED8;color:#fff}
     .ha-filter-headings{color:#e5edf8;font-size:13px;font-weight:700;text-align:center;align-items:center}
     .ha-filter-headings span{padding:2px}
     .ha-filter label{display:block;color:#9fb0c7;font-size:12px;margin-bottom:7px;text-align:center;visibility:hidden}
@@ -96,12 +96,12 @@
           <span>تا</span>
         </div>
         <div class="ha-filter-row" data-timeframe="Min1">
-          <span class="ha-filter-timeframe">1m</span>
+          <button class="ha-filter-timeframe" type="button" data-toggle-timeframe="Min1" aria-pressed="false">1m</button>
           <div><input id="filterFrom1m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
           <div><input id="filterTo1m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
         <div class="ha-filter-row" data-timeframe="Min15">
-          <span class="ha-filter-timeframe">15m</span>
+          <button class="ha-filter-timeframe" type="button" data-toggle-timeframe="Min15" aria-pressed="false">15m</button>
           <div><input id="filterFrom15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
           <div><input id="filterTo15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
@@ -138,6 +138,22 @@ const button=document.getElementById("refresh");
 const timeframe1m=document.getElementById("timeframe1m");
 const timeframe15m=document.getElementById("timeframe15m");
 const selectedTimeframes=new Set();
+function resetActiveFilter(){
+  activeRanges=null;
+  applyFilterButton.textContent="فیلتر";
+  applyFilterButton.classList.remove("is-remove");
+  applyFilterButton.setAttribute("aria-label","فیلتر");
+}
+function toggleTimeframe(value){
+  if(selectedTimeframes.has(value)) selectedTimeframes.delete(value);
+  else selectedTimeframes.add(value);
+  // A filter belongs to the exact set of selected timeframes. Reset it when
+  // that set changes so a hidden timeframe cannot keep filtering the results.
+  resetActiveFilter();
+  updateTimeframeButtons();
+  updateFilterRows();
+  renderRows();
+}
 function updateTimeframeButtons(){
   for(const [element,value,label] of [[timeframe1m,"Min1","۱ دقیقه"],[timeframe15m,"Min15","۱۵ دقیقه"]]){
     const active=selectedTimeframes.has(value);
@@ -145,12 +161,17 @@ function updateTimeframeButtons(){
     element.setAttribute("aria-pressed",String(active));
     element.textContent=label+(active?" ✓":"");
   }
-  for(const row of document.querySelectorAll(".ha-filter-row[data-timeframe]")){
-    row.querySelector(".ha-filter-timeframe")?.classList.toggle("active",selectedTimeframes.has(row.dataset.timeframe));
+  for(const control of document.querySelectorAll(".ha-filter-timeframe[data-toggle-timeframe]")){
+    const active=selectedTimeframes.has(control.dataset.toggleTimeframe);
+    control.classList.toggle("active",active);
+    control.setAttribute("aria-pressed",String(active));
   }
 }
-timeframe1m.addEventListener("click",()=>{selectedTimeframes.has("Min1")?selectedTimeframes.delete("Min1"):selectedTimeframes.add("Min1");updateTimeframeButtons();updateFilterRows();renderRows();});
-timeframe15m.addEventListener("click",()=>{selectedTimeframes.has("Min15")?selectedTimeframes.delete("Min15"):selectedTimeframes.add("Min15");updateTimeframeButtons();updateFilterRows();renderRows();});
+timeframe1m.addEventListener("click",()=>toggleTimeframe("Min1"));
+timeframe15m.addEventListener("click",()=>toggleTimeframe("Min15"));
+document.querySelectorAll(".ha-filter-timeframe[data-toggle-timeframe]").forEach(control=>{
+  control.addEventListener("click",()=>toggleTimeframe(control.dataset.toggleTimeframe));
+});
 const message=document.getElementById("message");
 const progressTrack=document.querySelector(".progress-track");
 const progressFill=document.getElementById("progressFill");
@@ -199,10 +220,12 @@ const fmtHa=(value)=>value===null||value===undefined?"—":Number(value).toFixed
 function groupedResults(){
   const bySymbol=new Map();
   for(const item of latestResults){
-    const symbol=String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"");
-    if(!symbol) continue;
+    // Normalize MEXC symbol variants before joining timeframe results.
+    // Consume the optional separator with USDT (e.g. BTC_USDT -> BTC).
+    const symbol=String(item.symbol||"").trim().toUpperCase().replace(/[_-]?USDT$/i,"").replace(/[_-]/g,"");
+    if(!symbol||!["Min1","Min15"].includes(item.timeframe)) continue;
     if(!bySymbol.has(symbol)) bySymbol.set(symbol,{symbol,Min1:null,Min15:null});
-    const timeframe=item.timeframe==="Min1"?"Min1":"Min15";
+    const timeframe=item.timeframe;
     const value=Number(item.haClose);
     if(item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)){
       bySymbol.get(symbol)[timeframe]=value;
