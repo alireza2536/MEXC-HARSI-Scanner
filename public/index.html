@@ -24,6 +24,10 @@
     #message{margin:0;color:#e5edf8;text-align:right;font-size:15px}
     #errorCount{color:#ff9999;white-space:nowrap;font-weight:700;font-size:15px}
     .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:0}th,td{width:33.333%;text-align:center;padding:12px 8px;border-bottom:1px solid #26364d;font-size:13px;font-variant-numeric:tabular-nums}th{color:#9fb0c7}th:first-child,td:first-child{ text-align:center }
+    #rows td.coin-card-cell{width:100%;padding:3px 4px;border-bottom:0}
+    .coin-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:center;gap:4px;padding:7px 3px;border:1px solid #26364d;border-radius:8px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
+    .coin-card.alt{background:#26364d}
+    .coin-card > span{min-width:0;text-align:center}
     .ha-sort-toggle{width:32px;height:32px;padding:0;margin-right:6px;border-radius:8px;background:#26364d;color:#e5edf8;font-size:20px;line-height:1;vertical-align:middle}
     .ha-sort-toggle:hover{background:#354862}
     .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;font-size:15px}
@@ -154,11 +158,20 @@ function renderRows(){
     const difference=av-bv;
     return direction==="asc"?difference:-difference;
   });
-  for(const item of results){
+  for(const [index,item] of results.entries()){
     const tr=document.createElement("tr");
+    const td=document.createElement("td");
+    td.colSpan=3;
+    td.className="coin-card-cell";
+    const card=document.createElement("div");
+    card.className="coin-card"+(index%2===0?" alt":"");
     for(const value of [item.symbol,fmtHa(item.Min1),fmtHa(item.Min15)]){
-      const td=document.createElement("td");td.textContent=value;tr.append(td);
+      const cell=document.createElement("span");
+      cell.textContent=value;
+      card.append(cell);
     }
+    td.append(card);
+    tr.append(td);
     rows.append(tr);
   }
   if(!results.length){
