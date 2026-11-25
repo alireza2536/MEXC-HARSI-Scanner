@@ -82,7 +82,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
   let currentProgress = null;
 
   async function loadSavedRows() {
-    const savedRows = (await Promise.all(["Min1", "Min15", "Min60"].map(async (timeframe) =>
+    const savedRows = (await Promise.all(["Min5", "Min55", "Min60"].map(async (timeframe) =>
       (await store.getLatestHarsiResults(2000, timeframe)).map((row) => ({ ...row, timeframe }))
     ))).flat();
     if (savedRows.length) {
@@ -178,7 +178,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       if (failedScan) throw failedScan.reason;
       const summaries = outcomes.map((outcome) => outcome.value);
       // Keep the latest saved value for every symbol/timeframe pair. A scan
-      // of 15m must not discard previously saved 1h or 1m values from the UI.
+      // of 15m must not discard previously saved 1h or 5m values from the UI.
       const mergedResults = new Map(
         (lastSummary?.results || []).map((item) => [`${item.timeframe}|${String(item.symbol).toUpperCase()}`, item])
       );
@@ -222,9 +222,9 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       await BackgroundScan.stop().catch(() => {});
       return getStatus();
     },
-    async refreshNow(timeframes = ["Min15"]) {
+    async refreshNow(timeframes = ["Min55"]) {
       if (running) return getStatus();
-      const selected = [...new Set(timeframes)].filter((value) => ["Min1", "Min15", "Min60"].includes(value));
+      const selected = [...new Set(timeframes)].filter((value) => ["Min5", "Min55", "Min60"].includes(value));
       if (!selected.length) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
       // Notification permission is optional: Android can still run a foreground
       // service when notifications are denied. Never block the market scan on it.
