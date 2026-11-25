@@ -482,7 +482,7 @@ function render(job){
     latestProgress=null;
     renderRows();
   }
-  const showUpdateStats=job.status==="running";
+  const showUpdateStats=job.status==="running"||processed>0||total>0||failed>0;
   document.querySelector(".progress-details").style.display=showUpdateStats?"flex":"none";
   message.textContent="پردازش: "+Number(processed).toLocaleString("en-US")+" از "+Number(total).toLocaleString("en-US");
   errorCount.textContent="خطا: "+Number(failed).toLocaleString("en-US");
