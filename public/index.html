@@ -519,10 +519,16 @@ button.addEventListener("click",async()=>{
     const data=await response.json();
     if(!response.ok) throw new Error(data.error||"شروع بروزرسانی ناموفق بود.");
     render(data.job);
-  }catch(error){errorEl.textContent=toEnglishDigits(error.message);button.disabled=false;}
+  }catch(error){errorEl.textContent=toEnglishDigits(error.message);button.disabled=false;}finally{
+    // Re-read the authoritative native/desktop status after every scan or cancel.
+    // This prevents a missed final status event from leaving the button in cancel mode.
+    button.disabled=false;
+    await refreshStatus();
+  }
 });
 refreshStatus();
-if(!isNativeApp()) setInterval(refreshStatus,3000);
+// Poll all app modes, including Android, as a fallback if a WebView status event is missed.
+setInterval(refreshStatus,3000);
 </script>
 <script type="module" src="./android-app.js"></script>
 </body>
