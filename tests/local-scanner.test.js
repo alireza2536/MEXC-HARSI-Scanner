@@ -64,6 +64,10 @@ test("local scanner reuses complete 2,000-candle cache and persists current HA",
   assert.equal(summary.historyBackfills, 0);
   assert.equal(summary.results[0].symbol, symbol);
   assert.equal(typeof summary.results[0].haClose, "number");
+  assert.equal(typeof summary.results[0].vwapDaily, "number");
+  assert.equal(typeof summary.results[0].vwapRolling, "number");
+  assert.equal(typeof calls.persist[0].currentVwap.vwap_daily, "number");
+  assert.equal(typeof calls.persist[0].currentVwap.vwap_rolling, "number");
 });
 
 
