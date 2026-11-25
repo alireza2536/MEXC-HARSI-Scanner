@@ -33,3 +33,39 @@ test("concurrent MEXC requests reserve spaced start times", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("separate timeframe clients share one aggregate MEXC request limiter", async () => {
+  const originalFetch = globalThis.fetch;
+  const starts = [];
+  globalThis.fetch = async () => {
+    starts.push(Date.now());
+    return {
+      ok: true,
+      json: async () => ({ success: true, data: Date.now() })
+    };
+  };
+
+  try {
+    const { createMexcRequestLimiter } = await import("../src/mexc-client.js");
+    const requestLimiter = createMexcRequestLimiter();
+    const oneMinuteClient = new MexcClient({ requestLimiter });
+    const fifteenMinuteClient = new MexcClient({ requestLimiter });
+    await Promise.all([
+      oneMinuteClient.getServerTimeMs(),
+      fifteenMinuteClient.getServerTimeMs(),
+      oneMinuteClient.getServerTimeMs(),
+      fifteenMinuteClient.getServerTimeMs()
+    ]);
+
+    assert.equal(starts.length, 4);
+    for (let index = 1; index < starts.length; index += 1) {
+      assert.ok(
+        starts[index] - starts[index - 1] >= 110,
+        `shared request ${index + 1} started only ${starts[index] - starts[index - 1]}ms after the prior request`
+      );
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
