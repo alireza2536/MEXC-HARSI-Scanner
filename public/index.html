@@ -333,7 +333,9 @@ function renderRows(){
   filterMessage.textContent=numberFormat.format(results.length)+" ارز دارای شرط";
 }
 function getExportRows(filteredOnly){
-  const visibleTimeframes=["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe));
+  const visibleTimeframes=activeRanges
+    ? Object.keys(activeRanges)
+    : ["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
   const all=groupedResults();
   let results=filteredOnly&&activeRanges
     ? all.filter(item=>visibleTimeframes.every(timeframe=>{
