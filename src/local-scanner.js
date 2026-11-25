@@ -22,7 +22,7 @@ async function getHistory(store, mexc, symbol, currentOpen, signal, timeframe, c
   );
   const expectedLastOpen = (currentOpen - candleSeconds) * 1000;
 
-  if (hasCompleteCandleWindow(cached, HISTORY_CANDLES, expectedLastOpen, CANDLE_MS)) {
+  if (hasCompleteCandleWindow(cached, HISTORY_CANDLES, expectedLastOpen, candleSeconds * 1000)) {
     return { candles: cached, cacheHit: true };
   }
 
