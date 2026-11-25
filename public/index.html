@@ -238,7 +238,7 @@ function renderRows(){
     return;
   }
   let results=activeRanges
-    ? all.filter(item=>visibleTimeframes.some(timeframe=>{
+    ? all.filter(item=>visibleTimeframes.every(timeframe=>{
         const range=activeRanges[timeframe],value=item[timeframe];
         return range&&value!==null&&value>=range.min&&value<=range.max;
       }))
@@ -279,8 +279,9 @@ function renderRows(){
     tr.append(td);rows.append(tr);
   }
   if(activeRanges){
+    const eligibleCount=all.filter(item=>visibleTimeframes.every(timeframe=>item[timeframe]!==null)).length;
     const ranges=visibleTimeframes.filter(tf=>activeRanges[tf]).map(tf=>(tf==="Min1"?"1m":"15m")+": "+fmt(activeRanges[tf].min)+" تا "+fmt(activeRanges[tf].max));
-    filterMessage.textContent="نمایش "+results.length+" از "+all.length+" ارز | "+ranges.join(" | ");
+    filterMessage.textContent="نمایش "+results.length+" از "+eligibleCount+" ارز | "+ranges.join(" | ");
   }else{
     filterMessage.textContent="فیلتر غیرفعال است؛ "+all.length+" ارز نمایش داده می‌شود.";
   }
@@ -289,7 +290,7 @@ function getExportRows(filteredOnly){
   const visibleTimeframes=["Min1","Min15"].filter(timeframe=>selectedTimeframes.has(timeframe));
   const all=groupedResults();
   let results=filteredOnly&&activeRanges
-    ? all.filter(item=>visibleTimeframes.some(timeframe=>{
+    ? all.filter(item=>visibleTimeframes.every(timeframe=>{
         const range=activeRanges[timeframe],value=item[timeframe];
         return range&&value!==null&&value>=range.min&&value<=range.max;
       }))
