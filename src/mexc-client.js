@@ -181,10 +181,12 @@ export class MexcClient {
       .filter((item) => Number.isFinite(item.lastPrice) && item.lastPrice > 0 && item.lastPrice < maxPrice);
   }
 
-  async get15mCandles(symbol, startSeconds, endSeconds) {
+  async getCandles(symbol, interval, startSeconds, endSeconds) {
+    if (!["Min1", "Min15"].includes(interval)) throw new Error(`Unsupported MEXC interval: ${interval}`);
+    const intervalSeconds = interval === "Min1" ? 60 : 900;
     const data = await this.#get(
       `/api/v1/contract/kline/${encodeURIComponent(symbol)}`,
-      { interval: "Min15", start: startSeconds, end: endSeconds }
+      { interval, start: startSeconds, end: endSeconds }
     );
 
     if (!data || !Array.isArray(data.time)) {
@@ -213,9 +215,17 @@ export class MexcClient {
       return {
         symbol,
         open_time: new Date(Number(time) * 1000).toISOString(),
-        close_time: new Date((Number(time) + 900) * 1000).toISOString(),
+        close_time: new Date((Number(time) + intervalSeconds) * 1000).toISOString(),
         ...values
       };
     });
+  }
+
+  async get1mCandles(symbol, startSeconds, endSeconds) {
+    return this.getCandles(symbol, "Min1", startSeconds, endSeconds);
+  }
+
+  async get15mCandles(symbol, startSeconds, endSeconds) {
+    return this.getCandles(symbol, "Min15", startSeconds, endSeconds);
   }
 }
