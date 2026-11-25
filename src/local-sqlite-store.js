@@ -105,9 +105,9 @@ const HARSI_COLUMNS = [
   "scan_match", "calculation_version"
 ];
 
-function tablesFor(timeframe = "Min55") {
+function tablesFor(timeframe = "Min15") {
   if (timeframe === "Min5") return { candles: "mexc_futures_ohlcv_5m", harsi: "mexc_harsi_results_5m" };
-  if (timeframe === "Min55") return { candles: "mexc_futures_ohlcv_15m", harsi: "mexc_harsi_results_15m" };
+  if (timeframe === "Min15") return { candles: "mexc_futures_ohlcv_15m", harsi: "mexc_harsi_results_15m" };
   if (timeframe === "Min60") return { candles: "mexc_futures_ohlcv_1h", harsi: "mexc_harsi_results_1h" };
   throw new Error(`Unsupported timeframe: ${timeframe}`);
 }
@@ -202,7 +202,7 @@ export function createLocalSqliteStore(sqliteConnection) {
     async initialize() {
       await initialize();
     },
-    async getHistoricalCandles(symbol, beforeOpenTime, limit = HISTORY_CANDLES, timeframe = "Min55") {
+    async getHistoricalCandles(symbol, beforeOpenTime, limit = HISTORY_CANDLES, timeframe = "Min15") {
       await initialize();
       const tables = tablesFor(timeframe);
       const result = await sqliteConnection.query(
@@ -214,7 +214,7 @@ export function createLocalSqliteStore(sqliteConnection) {
       );
       return (result.values || []).reverse();
     },
-    async upsertCandles(rows, timeframe = "Min55") {
+    async upsertCandles(rows, timeframe = "Min15") {
       await initialize();
       await serializeWrite(() => upsertMany(
         upsertStatement(tablesFor(timeframe).candles, CANDLE_COLUMNS),
@@ -222,7 +222,7 @@ export function createLocalSqliteStore(sqliteConnection) {
         CANDLE_COLUMNS
       ));
     },
-    async upsertHarsi(rows, timeframe = "Min55") {
+    async upsertHarsi(rows, timeframe = "Min15") {
       await initialize();
       await serializeWrite(() => upsertMany(
         upsertStatement(tablesFor(timeframe).harsi, HARSI_COLUMNS),
@@ -230,7 +230,7 @@ export function createLocalSqliteStore(sqliteConnection) {
         HARSI_COLUMNS
       ));
     },
-    async persistCurrentBatch(items, timeframe = "Min55") {
+    async persistCurrentBatch(items, timeframe = "Min15") {
       await initialize();
       const tables = tablesFor(timeframe);
       const candleStatement = upsertStatement(tables.candles, CANDLE_COLUMNS);
@@ -255,7 +255,7 @@ export function createLocalSqliteStore(sqliteConnection) {
         await serializeWrite(() => sqliteConnection.executeSet(operations, true));
       }
     },
-    async pruneCandleHistory(timeframe = "Min55") {
+    async pruneCandleHistory(timeframe = "Min15") {
       await initialize();
       const tables = tablesFor(timeframe);
       await serializeWrite(() => sqliteConnection.execute(
@@ -269,7 +269,7 @@ export function createLocalSqliteStore(sqliteConnection) {
          )`
       ));
     },
-    async pruneExpiredHarsi(now = new Date(), timeframe = "Min55") {
+    async pruneExpiredHarsi(now = new Date(), timeframe = "Min15") {
       await initialize();
       const cutoff = new Date(now.getTime() - RESULT_RETENTION_DAYS * 86400000).toISOString();
       const tables = tablesFor(timeframe);
@@ -278,7 +278,7 @@ export function createLocalSqliteStore(sqliteConnection) {
         [cutoff]
       ));
     },
-    async getLatestHarsiResults(limit = 1000, timeframe = "Min55") {
+    async getLatestHarsiResults(limit = 1000, timeframe = "Min15") {
       await initialize();
       const tables = tablesFor(timeframe);
       const result = await sqliteConnection.query(
