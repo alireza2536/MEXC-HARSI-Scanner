@@ -34,7 +34,7 @@
     "electron": "22.3.27",
     "electron-builder": "24.13.3"
   },
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "build": {
     "appId": "com.harsi.scanner",
     "productName": "Harsi",
@@ -49,7 +49,7 @@
       "package.json"
     ],
     "extraMetadata": {
-      "main": "electron/main.js"
+      "main": "electron/main.cjs"
     },
     "win": {
       "target": [
