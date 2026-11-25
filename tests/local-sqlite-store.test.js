@@ -28,10 +28,12 @@ test("local SQLite store initializes schema and commits candle/HA rows atomicall
   const db = fakeConnection();
   const store = createLocalSqliteStore(db);
   await store.initialize();
-  assert.equal(db.executed.length, 8);
+  assert.equal(db.executed.length, 11);
   assert.match(db.queries[0].statement, /foreign_keys = ON/i);
   assert.ok(db.executed.some((sql) => sql.includes("mexc_futures_ohlcv_15m")));
   assert.ok(db.executed.some((sql) => sql.includes("mexc_harsi_results_15m")));
+  assert.ok(db.executed.some((sql) => sql.includes("mexc_futures_ohlcv_1h")));
+  assert.ok(db.executed.some((sql) => sql.includes("mexc_harsi_results_1h")));
 
   const item = {
     current: {
@@ -98,7 +100,7 @@ test("concurrent timeframe writes are serialized and initialization runs once", 
 
   const store = createLocalSqliteStore(db);
   await Promise.all([store.initialize(), store.initialize(), store.initialize()]);
-  assert.equal(db.executed.length, 8);
+  assert.equal(db.executed.length, 11);
 
   const item = {
     current: {
