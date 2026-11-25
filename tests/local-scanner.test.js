@@ -90,13 +90,18 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
     hourlyCandle(currentOpen - (2000 - index) * intervalSeconds, index)
   );
   const current = hourlyCandle(currentOpen, 2000);
+  const dailyHistory = Array.from({ length: 2000 }, (_, index) =>
+    candle(symbol, currentOpen - (2000 - index) * INTERVAL_SECONDS, index)
+  );
+  const dailyCurrent = candle(symbol, currentOpen, 2000);
   let persistedTimeframe = null;
   const store = {
     async initialize() {},
     async pruneExpiredHarsi() {},
     async getHistoricalCandles(_symbol, _before, _limit, timeframe) {
-      assert.equal(timeframe, "Min60");
-      return history;
+      if (timeframe === "Min60") return history;
+      if (timeframe === "Min15") return dailyHistory;
+      assert.fail("Unexpected history timeframe: " + timeframe);
     },
     async persistCurrentBatch(items, timeframe) {
       persistedTimeframe = timeframe;
@@ -110,10 +115,11 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
     async getEligibleUsdtContracts() { return [{ symbol, lastPrice: 2 }]; },
     async getCandles(requestedSymbol, timeframe, start, end) {
       assert.equal(requestedSymbol, symbol);
-      assert.equal(timeframe, "Min60");
       assert.equal(start, currentOpen);
       assert.equal(end, Math.floor(nowMs / 1000));
-      return [current];
+      if (timeframe === "Min60") return [current];
+      if (timeframe === "Min15") return [dailyCurrent];
+      assert.fail("Unexpected candle timeframe: " + timeframe);
     }
   };
 
