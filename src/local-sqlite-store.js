@@ -81,7 +81,20 @@ const SCHEMA = [
       REFERENCES mexc_futures_ohlcv_1h(symbol, open_time) ON DELETE CASCADE
   )`,
   `CREATE INDEX IF NOT EXISTS idx_local_harsi_1h_time
-    ON mexc_harsi_results_1h(close_time DESC)`
+    ON mexc_harsi_results_1h(close_time DESC)`,
+  `CREATE TABLE IF NOT EXISTS mexc_vwap_values (
+    symbol TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    open_time TEXT NOT NULL,
+    vwap_daily REAL,
+    vwap_rolling REAL,
+    daily_candle_count INTEGER NOT NULL DEFAULT 0,
+    rolling_candle_count INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbol, timeframe, open_time)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_local_vwap_latest
+    ON mexc_vwap_values(symbol, timeframe, open_time DESC)`
 ];
 
 const CANDLE_COLUMNS = [
@@ -203,6 +216,20 @@ export function createLocalSqliteStore(sqliteConnection) {
       for (const item of items) {
         operations.push({ statement: candleStatement, values: valuesFor(item.current, CANDLE_COLUMNS) });
         operations.push({ statement: harsiStatement, values: valuesFor(item.currentHarsi, HARSI_COLUMNS) });
+        operations.push({
+          statement: `INSERT INTO mexc_vwap_values
+            (symbol, timeframe, open_time, vwap_daily, vwap_rolling, daily_candle_count, rolling_candle_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(symbol, timeframe, open_time) DO UPDATE SET
+              vwap_daily = excluded.vwap_daily,
+              vwap_rolling = excluded.vwap_rolling,
+              daily_candle_count = excluded.daily_candle_count,
+              rolling_candle_count = excluded.rolling_candle_count,
+              updated_at = CURRENT_TIMESTAMP`,
+          values: [item.contract.symbol, timeframe, item.current.open_time,
+            item.currentVwap?.vwap_daily ?? null, item.currentVwap?.vwap_rolling ?? null,
+            item.currentVwap?.daily_candle_count ?? 0, item.currentVwap?.rolling_candle_count ?? 0]
+        });
       }
       if (operations.length) {
         await serializeWrite(() => sqliteConnection.executeSet(operations, true));
@@ -235,17 +262,21 @@ export function createLocalSqliteStore(sqliteConnection) {
       await initialize();
       const tables = tablesFor(timeframe);
       const result = await sqliteConnection.query(
-        `SELECT symbol, open_time, close_time, ha_close, ha_open, ha_high, ha_low,
-                rsi_close, scan_match, calculation_version
+        `SELECT latest.symbol, latest.open_time, latest.close_time, latest.ha_close,
+                latest.ha_open, latest.ha_high, latest.ha_low, latest.rsi_close,
+                latest.scan_match, latest.calculation_version,
+                vwap.vwap_daily, vwap.vwap_rolling
          FROM (
            SELECT symbol, open_time, close_time, ha_close, ha_open, ha_high, ha_low,
                   rsi_close, scan_match, calculation_version,
                   ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY open_time DESC) AS position
            FROM ${tables.harsi}
          ) latest
-         WHERE position = 1
+         LEFT JOIN mexc_vwap_values vwap
+           ON vwap.symbol = latest.symbol AND vwap.timeframe = ? AND vwap.open_time = latest.open_time
+         WHERE latest.position = 1
          ORDER BY close_time DESC, symbol ASC LIMIT ?`,
-        [limit]
+        [timeframe, limit]
       );
       return result.values || [];
     },
