@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
@@ -146,6 +147,17 @@ app.whenReady().then(async () => {
     if (running) return status();
     void runScan(selected);
     return status();
+  });
+  ipcMain.handle("harsi:exportText", async (_event, { content, fileName }) => {
+    if (typeof content !== "string" || content.length > 10_000_000) throw new Error("محتوای خروجی نامعتبر است.");
+    const safeName = String(fileName || "Harsi-results.txt").replace(/[\\/:*?"<>|]/g, "_").slice(0, 120);
+    const choice = await dialog.showSaveDialog(windowRef, {
+      title: "ذخیره خروجی Harsi", defaultPath: path.join(app.getPath("documents"), safeName),
+      buttonLabel: "ذخیره فایل", filters: [{ name: "Text", extensions: ["txt"] }]
+    });
+    if (choice.canceled || !choice.filePath) return { canceled: true };
+    await writeFile(choice.filePath, content, { encoding: "utf8" });
+    return { canceled: false, filePath: choice.filePath };
   });
   ipcMain.handle("harsi:cancel", () => {
     if (controller) controller.abort();
