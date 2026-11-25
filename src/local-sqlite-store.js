@@ -226,7 +226,7 @@ export function createLocalSqliteStore(sqliteConnection) {
               daily_candle_count = excluded.daily_candle_count,
               rolling_candle_count = excluded.rolling_candle_count,
               updated_at = CURRENT_TIMESTAMP`,
-          values: [item.contract.symbol, timeframe, item.current.open_time,
+          values: [item.current.symbol, timeframe, item.current.open_time,
             item.currentVwap?.vwap_daily ?? null, item.currentVwap?.vwap_rolling ?? null,
             item.currentVwap?.daily_candle_count ?? 0, item.currentVwap?.rolling_candle_count ?? 0]
         });
