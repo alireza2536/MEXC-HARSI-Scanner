@@ -284,10 +284,10 @@ async function exportResults(filteredOnly){
     return;
   }
   const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":"۱۵ دقیقه")];
-  const lines=[headings.join("\\t"),...results.map(item=>[
+  const lines=[headings.join("\t"),...results.map(item=>[
     item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1))
-  ].join("\\t"))];
-  const content="\\uFEFF"+lines.join("\\r\\n")+"\\r\\n";
+  ].join("\t"))];
+  const content="\uFEFF"+lines.join("\r\n")+"\r\n";
   const stamp=new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
   const fileName="Harsi-"+(filteredOnly?"filtered":"all")+"-"+stamp+".txt";
   try{
