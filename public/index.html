@@ -74,8 +74,8 @@
       </div>
     </div>
     <div class="timeframe-picker" aria-label="انتخاب تایم‌فریم">
-      <button id="timeframe1m" type="button" class="active" aria-pressed="true">۱ دقیقه ✓</button>
-      <button id="timeframe15m" type="button" class="active" aria-pressed="true">۱۵ دقیقه ✓</button>
+      <button id="timeframe1m" type="button" aria-pressed="false">۱ دقیقه</button>
+      <button id="timeframe15m" type="button" aria-pressed="false">۱۵ دقیقه</button>
     </div>
     <button id="refresh">بروزرسانی</button>
     <div class="progress-track" role="progressbar" aria-label="میزان پردازش" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -137,7 +137,7 @@
 const button=document.getElementById("refresh");
 const timeframe1m=document.getElementById("timeframe1m");
 const timeframe15m=document.getElementById("timeframe15m");
-const selectedTimeframes=new Set(["Min1","Min15"]);
+const selectedTimeframes=new Set();
 function updateTimeframeButtons(){
   for(const [element,value,label] of [[timeframe1m,"Min1","۱ دقیقه"],[timeframe15m,"Min15","۱۵ دقیقه"]]){
     const active=selectedTimeframes.has(value);
