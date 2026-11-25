@@ -41,7 +41,14 @@
     .ha-filter input{width:100%;min-width:0;background:#172438;color:#e5edf8;border:1px solid #354862;border-radius:10px;padding:12px;text-align:center !important;font:inherit;font-size:16px;direction:ltr;font-variant-numeric:tabular-nums}
     .ha-filter-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
     .ha-filter-actions button{padding:11px 14px;font-size:14px}
-    #filterMessage{margin:10px 0 0;text-align:center;font-size:12px;color:#9fb0c7;min-height:18px}\n    .export-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:12px 0}\n    .export-actions button{padding:11px 8px;font-size:13px;background:#26364d;color:#e5edf8;border:1px solid #40536d}\n    .export-actions button:hover{background:#354862}\n    @media(max-width:420px){.export-actions{grid-template-columns:1fr}}
+    #filterMessage{margin:10px 0 0;text-align:center;font-size:12px;color:#9fb0c7;min-height:18px}
+    .export-menu-wrap{display:flex;justify-content:flex-end;position:relative;margin:10px 0 4px}
+    #exportMenuToggle{width:42px;height:42px;padding:0;border:1px solid #40536d;border-radius:10px;background:#26364d;color:#e5edf8;font-size:25px;line-height:1}
+    #exportMenuToggle:hover,#exportMenuToggle[aria-expanded="true"]{background:#354862}
+    .export-menu{position:absolute;z-index:20;top:46px;right:0;min-width:220px;padding:6px;background:#172438;border:1px solid #40536d;border-radius:12px;box-shadow:0 12px 28px #0008}
+    .export-menu[hidden]{display:none}
+    .export-menu button{display:block;width:100%;padding:12px 14px;margin:2px 0;text-align:right;background:transparent;color:#e5edf8;border-radius:8px;font-size:13px}
+    .export-menu button:hover{background:#26364d}
     @media(max-width:540px){.ha-filter{padding:12px}}
 
     .ha-topbar{display:flex;align-items:center;justify-content:center;position:relative;min-height:42px;margin-bottom:10px}
@@ -95,9 +102,12 @@
       </div>
       <p id="filterMessage" aria-live="polite">دو مقدار دلخواه وارد کنید؛ مثبت و منفی پذیرفته می‌شود.</p>
     </div>
-    <div class="export-actions">
-      <button id="exportFiltered" type="button">خروجی TXT نتایج فیلترشده</button>
-      <button id="exportAll" type="button">خروجی TXT همه نتایج</button>
+    <div class="export-menu-wrap">
+      <button id="exportMenuToggle" type="button" aria-label="منوی خروجی" title="منوی خروجی" aria-expanded="false" aria-controls="exportMenu">⋮</button>
+      <div id="exportMenu" class="export-menu" hidden>
+        <button id="exportFiltered" type="button">خروجی TXT نتایج فیلترشده</button>
+        <button id="exportAll" type="button">خروجی TXT همه نتایج</button>
+      </div>
     </div>
     <div class="table-wrap">
       <table id="resultsTable"><colgroup><col id="coinCol" style="width:33.333%"><col id="col1m" style="width:33.333%"><col id="col15m" style="width:33.333%"></colgroup><thead><tr><th>نام ارز</th><th id="heading1m">1m <button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></th><th id="heading15m">15m <button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></th></tr></thead>
@@ -313,8 +323,20 @@ async function exportResults(filteredOnly){
     filterMessage.textContent="ذخیره فایل ناموفق بود: "+toEnglishDigits(error.message||error);
   }
 }
-document.getElementById("exportFiltered").addEventListener("click",()=>exportResults(true));
-document.getElementById("exportAll").addEventListener("click",()=>exportResults(false));
+const exportMenuToggle=document.getElementById("exportMenuToggle");
+const exportMenu=document.getElementById("exportMenu");
+function closeExportMenu(){exportMenu.hidden=true;exportMenuToggle.setAttribute("aria-expanded","false");}
+exportMenuToggle.addEventListener("click",()=>{
+  const opening=exportMenu.hidden;
+  exportMenu.hidden=!opening;
+  exportMenuToggle.setAttribute("aria-expanded",String(opening));
+});
+document.addEventListener("click",event=>{
+  if(!event.target.closest(".export-menu-wrap"))closeExportMenu();
+});
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closeExportMenu();});
+document.getElementById("exportFiltered").addEventListener("click",()=>{closeExportMenu();exportResults(true);});
+document.getElementById("exportAll").addEventListener("click",()=>{closeExportMenu();exportResults(false);});
 function updateSortButton(button,timeframe){
   const direction=sortDirections[timeframe];
   button.textContent=direction==="asc"?"↑":"↓";
