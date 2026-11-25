@@ -41,7 +41,7 @@
     .ha-filter input{width:100%;min-width:0;background:#172438;color:#e5edf8;border:1px solid #354862;border-radius:10px;padding:12px;text-align:center !important;font:inherit;font-size:16px;direction:ltr;font-variant-numeric:tabular-nums}
     .ha-filter-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
     .ha-filter-actions button{padding:11px 14px;font-size:14px}
-    #filterMessage{margin:10px 0 0;text-align:center;font-size:12px;color:#9fb0c7;min-height:18px}
+    #filterMessage{margin:10px 0 0;text-align:center;font-size:12px;color:#9fb0c7;min-height:18px}\n    .export-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:12px 0}\n    .export-actions button{padding:11px 8px;font-size:13px;background:#26364d;color:#e5edf8;border:1px solid #40536d}\n    .export-actions button:hover{background:#354862}\n    @media(max-width:420px){.export-actions{grid-template-columns:1fr}}
     @media(max-width:540px){.ha-filter{padding:12px}}
 
     .ha-topbar{display:flex;align-items:center;justify-content:center;position:relative;min-height:42px;margin-bottom:10px}
@@ -253,6 +253,61 @@ function renderRows(){
     filterMessage.textContent="فیلتر غیرفعال است؛ "+all.length+" ارز نمایش داده می‌شود.";
   }
 }
+function getExportRows(filteredOnly){
+  const visibleTimeframes=["Min1","Min15"].filter(timeframe=>selectedTimeframes.has(timeframe));
+  const all=groupedResults();
+  let results=filteredOnly&&activeRanges
+    ? all.filter(item=>visibleTimeframes.some(timeframe=>{
+        const range=activeRanges[timeframe],value=item[timeframe];
+        return range&&value!==null&&value>=range.min&&value<=range.max;
+      }))
+    : all;
+  const direction=sortDirections[sortBy];
+  return [...results].sort((a,b)=>{
+    const av=a[sortBy],bv=b[sortBy];
+    if(av===null&&bv===null)return a.symbol.localeCompare(b.symbol);
+    if(av===null)return 1;
+    if(bv===null)return -1;
+    const difference=av-bv;
+    return direction==="asc"?difference:-difference;
+  });
+}
+async function exportResults(filteredOnly){
+  const visibleTimeframes=["Min1","Min15"].filter(timeframe=>selectedTimeframes.has(timeframe));
+  if(!visibleTimeframes.length){
+    filterMessage.textContent="برای خروجی گرفتن حداقل یک تایم‌فریم را انتخاب کنید.";
+    return;
+  }
+  const results=getExportRows(filteredOnly);
+  if(!results.length){
+    filterMessage.textContent="نتیجه‌ای برای خروجی گرفتن وجود ندارد.";
+    return;
+  }
+  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":"۱۵ دقیقه")];
+  const lines=[headings.join("\\t"),...results.map(item=>[
+    item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1))
+  ].join("\\t"))];
+  const content="\\uFEFF"+lines.join("\\r\\n")+"\\r\\n";
+  const stamp=new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
+  const fileName="Harsi-"+(filteredOnly?"filtered":"all")+"-"+stamp+".txt";
+  try{
+    if(window.harsiDesktop?.exportText){
+      const result=await window.harsiDesktop.exportText(content,fileName);
+      filterMessage.textContent=result?.canceled?"ذخیره فایل لغو شد.":"فایل TXT با موفقیت ذخیره شد.";
+    }else{
+      const blob=new Blob([content],{type:"text/plain;charset=utf-8"});
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement("a");
+      link.href=url;link.download=fileName;link.click();
+      URL.revokeObjectURL(url);
+      filterMessage.textContent="فایل TXT آماده شد.";
+    }
+  }catch(error){
+    filterMessage.textContent="ذخیره فایل ناموفق بود: "+toEnglishDigits(error.message||error);
+  }
+}
+document.getElementById("exportFiltered").addEventListener("click",()=>exportResults(true));
+document.getElementById("exportAll").addEventListener("click",()=>exportResults(false));
 function updateSortButton(button,timeframe){
   const direction=sortDirections[timeframe];
   button.textContent=direction==="asc"?"↑":"↓";
