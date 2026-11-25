@@ -35,6 +35,8 @@
     .ha-filter-fields{display:grid;grid-template-columns:1fr;gap:12px}
     .ha-filter-row{display:grid;grid-template-columns:.7fr 1fr 1fr;gap:10px;align-items:center}
     .ha-filter-timeframe{display:flex;align-items:center;justify-content:center;color:#e5edf8;font-size:14px;font-weight:700;text-align:center;padding:12px 2px;transform:translateY(14px)}
+    .ha-filter-headings{color:#e5edf8;font-size:13px;font-weight:700;text-align:center;align-items:center}
+    .ha-filter-headings span{padding:2px}
     .ha-filter label{display:block;color:#9fb0c7;font-size:12px;margin-bottom:7px;text-align:center;visibility:hidden}
     .ha-filter input{width:100%;min-width:0;background:#172438;color:#e5edf8;border:1px solid #354862;border-radius:10px;padding:12px;text-align:center !important;font:inherit;font-size:16px;direction:ltr;font-variant-numeric:tabular-nums}
     .ha-filter-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
@@ -72,6 +74,11 @@
   <section class="panel">
     <div class="ha-filter" aria-label="محدوده نمایش بر اساس مقدار">
       <div class="ha-filter-fields" id="haFilterFields">
+        <div class="ha-filter-row ha-filter-headings" aria-hidden="true">
+          <span></span>
+          <span>از</span>
+          <span>تا</span>
+        </div>
         <div class="ha-filter-row" data-timeframe="Min1">
           <span class="ha-filter-timeframe">1m</span>
           <div><input id="filterFrom1m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="4"></div>
