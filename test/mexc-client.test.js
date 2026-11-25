@@ -69,3 +69,31 @@ test("separate timeframe clients share one aggregate MEXC request limiter", asyn
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("MEXC client accepts Min60 and converts hourly candle close times", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get("interval"), "Min60");
+    return {
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          time: [1_800_000_000],
+          open: [100], high: [101], low: [99], close: [100.5],
+          vol: [10], amount: [1000]
+        }
+      })
+    };
+  };
+  try {
+    const client = new MexcClient();
+    const candles = await client.getCandles("TEST_USDT", "Min60", 1_800_000_000, 1_800_003_600);
+    assert.equal(candles.length, 1);
+    assert.equal(Date.parse(candles[0].close_time) - Date.parse(candles[0].open_time), 3_600_000);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
