@@ -84,7 +84,7 @@ test("local scanner aborts before opening or writing when app is backgrounded", 
   const mexc = {
     async getServerTimeMs() { return NOW_MS; },
     async getEligibleUsdtContracts() { return []; },
-    async get15mCandles() { return []; }
+    async getCandles() { return []; }
   };
 
   await assert.rejects(
