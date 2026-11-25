@@ -24,9 +24,9 @@
     .progress-details{display:none;align-items:center;justify-content:space-between;gap:12px;font-size:15px}
     #message{margin:0;color:#e5edf8;text-align:right;font-size:15px}
     #errorCount{color:#ff9999;white-space:nowrap;font-weight:700;font-size:15px}
-    .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:0}th,td{width:33.333%;text-align:center;padding:12px 8px;border-bottom:1px solid #26364d;font-size:13px;font-variant-numeric:tabular-nums}th{color:#9fb0c7}th:first-child,td:first-child{ text-align:center }
+    .table-wrap{overflow:auto}#resultsTable{min-width:560px}table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:0}th,td{width:33.333%;text-align:center;padding:12px 8px;border-bottom:1px solid #26364d;font-size:13px;font-variant-numeric:tabular-nums}th{color:#9fb0c7}th:first-child,td:first-child{ text-align:center }
     #rows td.coin-card-cell{width:100%;padding:3px 4px;border-bottom:0}
-    .coin-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:center;gap:4px;padding:7px 3px;border:1px solid #26364d;border-radius:8px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
+    .coin-card{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));align-items:center;gap:4px;padding:7px 3px;border:1px solid #26364d;border-radius:8px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
     .coin-card.alt{background:#26364d}
     .coin-card > span{min-width:0;text-align:center}
     .results-heading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px}.ha-sort-toggle{width:28px;height:24px;padding:0;margin:0;border-radius:7px;background:#26364d;color:#e5edf8;font-size:19px;line-height:1}
@@ -136,7 +136,7 @@
       </div>
     </div>
     <div class="table-wrap">
-      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col1m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"></colgroup><thead><tr><th>نام ارز</th><th id="heading1m"><div class="results-heading"><span>۱ دقیقه</span><button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th></tr></thead>
+      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col1m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"><col id="colVwapDaily" style="width:16.667%"><col id="colVwapRolling" style="width:16.667%"></colgroup><thead><tr><th>نام ارز</th><th id="heading1m"><div class="results-heading"><span>۱ دقیقه</span><button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th><th id="headingVwapDaily">VWAP D</th><th id="headingVwapRolling">VWAP M</th></tr></thead>
       <tbody id="rows"><tr><td colspan="4" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
@@ -203,6 +203,8 @@ const col1m=document.getElementById("col1m");
 const col15m=document.getElementById("col15m");
 const heading1h=document.getElementById("heading1h");
 const col1h=document.getElementById("col1h");
+const colVwapDaily=document.getElementById("colVwapDaily");
+const colVwapRolling=document.getElementById("colVwapRolling");
 const filterInputs={
   Min1:{from:document.getElementById("filterFrom1m"),to:document.getElementById("filterTo1m")},
   Min15:{from:document.getElementById("filterFrom15m"),to:document.getElementById("filterTo15m")},
@@ -247,11 +249,20 @@ function groupedResults(){
     // Consume the optional separator with USDT (e.g. BTC_USDT -> BTC).
     const symbol=String(item.symbol||"").trim().toUpperCase().replace(/[_-]?USDT$/i,"").replace(/[_-]/g,"");
     if(!symbol||!["Min1","Min15","Min60"].includes(item.timeframe)) continue;
-    if(!bySymbol.has(symbol)) bySymbol.set(symbol,{symbol,Min1:null,Min15:null,Min60:null});
+    if(!bySymbol.has(symbol)) bySymbol.set(symbol,{
+      symbol,Min1:null,Min15:null,Min60:null,vwapDaily:null,vwapRolling:null
+    });
+    const row=bySymbol.get(symbol);
     const timeframe=item.timeframe;
     const value=Number(item.haClose);
     if(item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)){
-      bySymbol.get(symbol)[timeframe]=value;
+      row[timeframe]=value;
+    }
+    // VWAP D/M use the 15-minute candle stream so 96 rolling candles = 24 hours.
+    if(timeframe==="Min15"){
+      const daily=Number(item.vwapDaily),rolling=Number(item.vwapRolling);
+      row.vwapDaily=item.vwapDaily!==null&&item.vwapDaily!==undefined&&Number.isFinite(daily)?daily:null;
+      row.vwapRolling=item.vwapRolling!==null&&item.vwapRolling!==undefined&&Number.isFinite(rolling)?rolling:null;
     }
   }
   return [...bySymbol.values()];
@@ -264,13 +275,15 @@ function updateResultsColumns(){
   heading1m.hidden=!show1m; col1m.hidden=!show1m;
   heading15m.hidden=!show15m; col15m.hidden=!show15m;
   heading1h.hidden=!show1h; col1h.hidden=!show1h;
-  const columnCount=1+Number(show1m)+Number(show15m)+Number(show1h);
+  const columnCount=3+Number(show1m)+Number(show15m)+Number(show1h);
   // Keep the currency column anchored in its original slot and width.
   const width=(100/columnCount).toFixed(3)+"%";
   coinCol.style.width=width;
   col1m.style.width=width;
   col15m.style.width=width;
   col1h.style.width=width;
+  colVwapDaily.style.width=width;
+  colVwapRolling.style.width=width;
   if(!displayTimeframes.has(sortBy)){
     sortBy=show1m?"Min1":show15m?"Min15":show1h?"Min60":"Min1";
   }
@@ -308,19 +321,28 @@ function renderRows(){
   for(const [index,item] of results.entries()){
     const tr=document.createElement("tr");
     const td=document.createElement("td");
-    td.colSpan=4;
+    td.colSpan=6;
     td.className="coin-card-cell";
     const card=document.createElement("div");
     card.className="coin-card"+(index%2===0?" alt":"");
-    card.style.gridTemplateColumns="repeat(4,minmax(0,1fr))";
+    const visibleTimeframes=["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
+    card.style.gridTemplateColumns="repeat("+(visibleTimeframes.length+3)+",minmax(0,1fr))";
     const coinCell=document.createElement("span");
     coinCell.textContent=item.symbol;
     card.append(coinCell);
-    for(const timeframe of ["Min1","Min15","Min60"]){
+    for(const timeframe of visibleTimeframes){
       const cell=document.createElement("span");
-      cell.textContent=(selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe))?fmtHa(item[timeframe]):"";
+      cell.textContent=fmtHa(item[timeframe]);
       card.append(cell);
     }
+    const dailyCell=document.createElement("span");
+    dailyCell.textContent=fmt(item.vwapDaily);
+    dailyCell.title="VWAP روزانه بر اساس کندل‌های ۱۵ دقیقه‌ای";
+    card.append(dailyCell);
+    const rollingCell=document.createElement("span");
+    rollingCell.textContent=fmt(item.vwapRolling);
+    rollingCell.title="VWAP متحرک ۹۶ کندل ۱۵ دقیقه‌ای";
+    card.append(rollingCell);
     td.append(card);
     tr.append(td);
     rows.append(tr);
@@ -368,9 +390,9 @@ async function exportResults(filteredOnly, chosenName){
     filterMessage.textContent="نتیجه‌ای برای خروجی گرفتن وجود ندارد.";
     return;
   }
-  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":tf==="Min15"?"۱۵ دقیقه":"۱ ساعت")];
+  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":tf==="Min15"?"۱۵ دقیقه":"۱ ساعت"),"VWAP D","VWAP M"];
   const lines=[headings.join("\t"),...results.map(item=>[
-    item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1))
+    item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1)),item.vwapDaily===null?"—":fmt(item.vwapDaily),item.vwapRolling===null?"—":fmt(item.vwapRolling)
   ].join("\t"))];
   const content="\uFEFF"+lines.join("\r\n")+"\r\n";
   const stamp=new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
