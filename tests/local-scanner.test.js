@@ -162,3 +162,60 @@ test("local scanner aborts before opening or writing when app is backgrounded", 
   );
   assert.equal(initialized, false);
 });
+
+
+test("local scanner supports the 5-minute timeframe and retains daily VWAP calculation", async () => {
+  const symbol = "TEST_USDT";
+  const currentOpen = 1_800_000_000;
+  const nowMs = (currentOpen + 60) * 1000;
+  const makeCandle = (openSeconds, index, intervalSeconds) => {
+    const base = 100 + index * 0.01;
+    return {
+      symbol,
+      open_time: new Date(openSeconds * 1000).toISOString(),
+      close_time: new Date((openSeconds + intervalSeconds) * 1000).toISOString(),
+      open_price: base, high_price: base + 1, low_price: base - 1,
+      close_price: base + 0.25, volume: 10, amount: 1000
+    };
+  };
+  const history5m = Array.from({ length: 2000 }, (_, index) =>
+    makeCandle(currentOpen - (2000 - index) * 300, index, 300)
+  );
+  const current5m = makeCandle(currentOpen, 2000, 300);
+  const dailyHistory = Array.from({ length: 2000 }, (_, index) =>
+    makeCandle(currentOpen - (2000 - index) * 900, index, 900)
+  );
+  const dailyCurrent = makeCandle(currentOpen, 2000, 900);
+  const store = {
+    async initialize() {}, async pruneExpiredHarsi() {},
+    async getHistoricalCandles(_symbol, _before, _limit, timeframe) {
+      if (timeframe === "Min5") return history5m;
+      if (timeframe === "Min15") return dailyHistory;
+      assert.fail("Unexpected history timeframe: " + timeframe);
+    },
+    async persistCurrentBatch(items, timeframe) {
+      assert.equal(timeframe, "Min5");
+      assert.equal(items.length, 1);
+      assert.equal(typeof items[0].currentVwap.vwap_daily, "number");
+    },
+    async pruneCandleHistory(timeframe) { assert.equal(timeframe, "Min5"); },
+    async upsertCandles() { assert.fail("Complete cache must not be backfilled."); }
+  };
+  const mexc = {
+    async getServerTimeMs() { return nowMs; },
+    async getEligibleUsdtContracts() { return [{ symbol, lastPrice: 2 }]; },
+    async getCandles(requestedSymbol, timeframe, start, end) {
+      assert.equal(requestedSymbol, symbol);
+      assert.equal(start, currentOpen);
+      assert.equal(end, Math.floor(nowMs / 1000));
+      if (timeframe === "Min5") return [current5m];
+      if (timeframe === "Min15") return [dailyCurrent];
+      assert.fail("Unexpected candle timeframe: " + timeframe);
+    }
+  };
+  const summary = await runLocalHarsiScan({ mexc, store, maxPrice: 30, nowMs, timeframe: "Min5" });
+  assert.equal(summary.updatedContracts, 1);
+  assert.equal(summary.failedContracts, 0);
+  assert.equal(summary.historyCacheHits, 2);
+  assert.equal(summary.results[0].timeframe, "Min5");
+});
