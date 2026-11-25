@@ -1,4 +1,9 @@
-export const DEFAULT_ROLLING_VWAP_CANDLES = 96;
+export const ROLLING_VWAP_CANDLES_BY_TIMEFRAME = Object.freeze({
+  Min1: 1440,
+  Min15: 96,
+  Min60: 24
+});
+export const DEFAULT_ROLLING_VWAP_CANDLES = ROLLING_VWAP_CANDLES_BY_TIMEFRAME.Min15;
 
 function timestampOf(candle) {
   const value = Date.parse(candle?.open_time);
