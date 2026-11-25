@@ -78,3 +78,53 @@ test("local SQLite store uses bounded native batches and parameterized retention
   assert.equal(db.runs.length, 1);
   assert.equal(db.runs[0].values[0], "2026-11-17T00:00:00.000Z");
 });
+
+
+test("concurrent timeframe writes are serialized and initialization runs once", async () => {
+  const db = fakeConnection();
+  let activeWrites = 0;
+  let maxActiveWrites = 0;
+  const originalExecuteSet = db.executeSet.bind(db);
+  db.executeSet = async (...args) => {
+    activeWrites += 1;
+    maxActiveWrites = Math.max(maxActiveWrites, activeWrites);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    try {
+      return await originalExecuteSet(...args);
+    } finally {
+      activeWrites -= 1;
+    }
+  };
+
+  const store = createLocalSqliteStore(db);
+  await Promise.all([store.initialize(), store.initialize(), store.initialize()]);
+  assert.equal(db.executed.length, 8);
+
+  const item = {
+    current: {
+      symbol: "BTC_USDT",
+      open_time: "2026-11-24T00:00:00.000Z",
+      close_time: "2026-11-24T00:01:00.000Z",
+      open_price: 1, high_price: 2, low_price: 0.5, close_price: 1.5,
+      volume: 3, amount: 4
+    },
+    currentHarsi: {
+      symbol: "BTC_USDT",
+      open_time: "2026-11-24T00:00:00.000Z",
+      close_time: "2026-11-24T00:01:00.000Z",
+      rsi_open: 50, rsi_high: 55, rsi_low: 45, rsi_close: 52,
+      ha_open: 50, ha_high: 55, ha_low: 45, ha_close: 52,
+      scan_match: null, calculation_version: "test"
+    }
+  };
+  await Promise.all([
+    store.persistCurrentBatch([item], "Min1"),
+    store.persistCurrentBatch([item], "Min15"),
+    store.persistCurrentBatch([item], "Min1"),
+    store.persistCurrentBatch([item], "Min15")
+  ]);
+
+  assert.equal(maxActiveWrites, 1);
+  assert.equal(db.sets.length, 4);
+  assert.ok(db.sets.every((batch) => batch.transaction === true));
+});
