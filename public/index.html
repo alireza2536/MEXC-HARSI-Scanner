@@ -23,7 +23,7 @@
     .progress-details{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:15px}
     #message{margin:0;color:#e5edf8;text-align:right;font-size:15px}
     #errorCount{color:#ff9999;white-space:nowrap;font-weight:700;font-size:15px}
-    .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:520px}th,td{text-align:right;padding:12px 10px;border-bottom:1px solid #26364d;font-size:13px}th{color:#9fb0c7}
+    .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:0}th,td{width:33.333%;text-align:center;padding:12px 8px;border-bottom:1px solid #26364d;font-size:13px;font-variant-numeric:tabular-nums}th{color:#9fb0c7}th:first-child,td:first-child{ text-align:center }
     .ha-sort-toggle{width:32px;height:32px;padding:0;margin-right:6px;border-radius:8px;background:#26364d;color:#e5edf8;font-size:20px;line-height:1;vertical-align:middle}
     .ha-sort-toggle:hover{background:#354862}
     .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;font-size:15px}
@@ -75,8 +75,8 @@
       <p id="filterMessage" aria-live="polite">دو مقدار دلخواه وارد کنید؛ مثبت و منفی پذیرفته می‌شود.</p>
     </div>
     <div class="table-wrap">
-      <table style="min-width:0"><thead><tr><th>مقدار <button id="haSort" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی" title="مرتب‌سازی نزولی">↓</button></th><th>نام ارز</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="2" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
+      <table><colgroup><col style="width:33.333%"><col style="width:33.333%"><col style="width:33.333%"></colgroup><thead><tr><th>نام ارز</th><th>1m <button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></th><th>15m <button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="3" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
 </main>
@@ -105,7 +105,8 @@ const filterFrom=document.getElementById("filterFrom");
 const filterTo=document.getElementById("filterTo");
 const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
-const haSort=document.getElementById("haSort");
+const sort1m=document.getElementById("sort1m");
+const sort15m=document.getElementById("sort15m");
 function toEnglishDigits(value){
   return String(value??"")
     .replace(/[۰-۹]/g,digit=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
@@ -117,51 +118,80 @@ for(const input of [filterFrom,filterTo]){
   input.addEventListener("input",()=>useEnglishDigits(input));
   useEnglishDigits(input);
 }
-let sortDirection="desc";
+let sortDirections={Min1:"desc",Min15:"desc"};
+let sortBy="Min1";
 let latestResults=[];
 let activeRange=null;
 let latestProgress=null;
 const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
 const fmtHa=(value)=>value===null||value===undefined?"—":Number(value).toFixed(1);
+function groupedResults(){
+  const bySymbol=new Map();
+  for(const item of latestResults){
+    const symbol=String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"");
+    if(!symbol) continue;
+    if(!bySymbol.has(symbol)) bySymbol.set(symbol,{symbol,Min1:null,Min15:null});
+    const timeframe=item.timeframe==="Min1"?"Min1":"Min15";
+    const value=Number(item.haClose);
+    if(item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)){
+      bySymbol.get(symbol)[timeframe]=value;
+    }
+  }
+  return [...bySymbol.values()];
+}
 function renderRows(){
   rows.replaceChildren();
-  const filteredResults=activeRange
-    ? latestResults.filter(item=>{
-        const value=Number(item.haClose);
-        return item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)&&value>=activeRange.min&&value<=activeRange.max;
-      })
-    : latestResults;
-  const results=[...filteredResults].sort((a,b)=>{
-    const difference=Number(a.haClose)-Number(b.haClose);
-    return sortDirection==="asc"?difference:-difference;
+  const all=groupedResults();
+  let results=activeRange
+    ? all.filter(item=>[item.Min1,item.Min15].some(value=>value!==null&&value>=activeRange.min&&value<=activeRange.max))
+    : all;
+  const direction=sortDirections[sortBy];
+  results=[...results].sort((a,b)=>{
+    const av=a[sortBy],bv=b[sortBy];
+    if(av===null&&bv===null)return a.symbol.localeCompare(b.symbol);
+    if(av===null)return 1;
+    if(bv===null)return -1;
+    const difference=av-bv;
+    return direction==="asc"?difference:-difference;
   });
   for(const item of results){
     const tr=document.createElement("tr");
-    for(const value of [fmtHa(item.haClose),String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"")+(item.timeframe?` (${item.timeframe==="Min1"?"۱ دقیقه":"۱۵ دقیقه"})`:"")]){
+    for(const value of [item.symbol,fmtHa(item.Min1),fmtHa(item.Min15)]){
       const td=document.createElement("td");td.textContent=value;tr.append(td);
     }
     rows.append(tr);
   }
   if(!results.length){
     const tr=document.createElement("tr");
-    const td=document.createElement("td");td.colSpan=2;td.className="muted";
-    td.textContent=latestResults.length?"مقداری در این بازه پیدا نشد.":"مقداری برای نمایش وجود ندارد.";
+    const td=document.createElement("td");td.colSpan=3;td.className="muted";
+    td.textContent=all.length?"مقداری در این بازه پیدا نشد.":"مقداری برای نمایش وجود ندارد.";
     tr.append(td);rows.append(tr);
   }
   if(activeRange){
-    filterMessage.textContent="نمایش "+results.length+" از "+latestResults.length+" ارز | بازه: "+fmt(activeRange.min)+" تا "+fmt(activeRange.max);
+    filterMessage.textContent="نمایش "+results.length+" از "+all.length+" ارز | بازه: "+fmt(activeRange.min)+" تا "+fmt(activeRange.max);
   }else{
-    filterMessage.textContent="فیلتر غیرفعال است؛ "+latestResults.length+" ارز نمایش داده می‌شود.";
+    filterMessage.textContent="فیلتر غیرفعال است؛ "+all.length+" ارز نمایش داده می‌شود.";
   }
 }
-haSort.addEventListener("click",()=>{
-  sortDirection=sortDirection==="asc"?"desc":"asc";
-  haSort.textContent=sortDirection==="asc"?"↑":"↓";
-  const directionLabel=sortDirection==="asc"?"صعودی":"نزولی";
-  haSort.setAttribute("aria-label","مرتب‌سازی "+directionLabel);
-  haSort.title="مرتب‌سازی "+directionLabel;
+function updateSortButton(button,timeframe){
+  const active=sortBy===timeframe;
+  const direction=sortDirections[timeframe];
+  button.textContent=active?(direction==="asc"?"↑":"↓"):"↕";
+  const label="مرتب‌سازی "+(direction==="asc"?"صعودی":"نزولی")+" "+(timeframe==="Min1"?"1m":"15m");
+  button.setAttribute("aria-label",label);
+  button.title=label;
+}
+function sortColumn(timeframe){
+  if(sortBy===timeframe) sortDirections[timeframe]=sortDirections[timeframe]==="asc"?"desc":"asc";
+  sortBy=timeframe;
+  updateSortButton(sort1m,"Min1");
+  updateSortButton(sort15m,"Min15");
   renderRows();
-});
+}
+sort1m.addEventListener("click",()=>sortColumn("Min1"));
+sort15m.addEventListener("click",()=>sortColumn("Min15"));
+updateSortButton(sort1m,"Min1");
+updateSortButton(sort15m,"Min15");
 function normalizeNumericInput(value){
   return String(value).trim()
     .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
