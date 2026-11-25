@@ -60,7 +60,28 @@ const SCHEMA = [
       REFERENCES mexc_futures_ohlcv_1m(symbol, open_time) ON DELETE CASCADE
   )`,
   `CREATE INDEX IF NOT EXISTS idx_local_harsi_1m_time
-    ON mexc_harsi_results_1m(close_time DESC)`
+    ON mexc_harsi_results_1m(close_time DESC)`,
+  `CREATE TABLE IF NOT EXISTS mexc_futures_ohlcv_1h (
+    symbol TEXT NOT NULL, open_time TEXT NOT NULL, close_time TEXT NOT NULL,
+    open_price REAL NOT NULL, high_price REAL NOT NULL, low_price REAL NOT NULL,
+    close_price REAL NOT NULL, volume REAL, amount REAL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbol, open_time)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_local_ohlcv_1h_symbol_time
+    ON mexc_futures_ohlcv_1h(symbol, open_time DESC)`,
+  `CREATE TABLE IF NOT EXISTS mexc_harsi_results_1h (
+    symbol TEXT NOT NULL, open_time TEXT NOT NULL, close_time TEXT NOT NULL,
+    rsi_open REAL, rsi_high REAL, rsi_low REAL, rsi_close REAL,
+    ha_open REAL, ha_high REAL, ha_low REAL, ha_close REAL,
+    scan_match INTEGER, calculation_version TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbol, open_time),
+    FOREIGN KEY (symbol, open_time)
+      REFERENCES mexc_futures_ohlcv_1h(symbol, open_time) ON DELETE CASCADE
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_local_harsi_1h_time
+    ON mexc_harsi_results_1h(close_time DESC)`
 ];
 
 const CANDLE_COLUMNS = [
@@ -76,6 +97,7 @@ const HARSI_COLUMNS = [
 function tablesFor(timeframe = "Min15") {
   if (timeframe === "Min1") return { candles: "mexc_futures_ohlcv_1m", harsi: "mexc_harsi_results_1m" };
   if (timeframe === "Min15") return { candles: "mexc_futures_ohlcv_15m", harsi: "mexc_harsi_results_15m" };
+  if (timeframe === "Min60") return { candles: "mexc_futures_ohlcv_1h", harsi: "mexc_harsi_results_1h" };
   throw new Error(`Unsupported timeframe: ${timeframe}`);
 }
 
