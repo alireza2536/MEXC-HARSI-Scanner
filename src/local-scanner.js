@@ -190,7 +190,12 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   throwIfAborted();
   publishProgress(null);
 
-  await store.pruneCandleHistory(timeframe);
+  // Do not keep the user-facing scan state locked while SQLite performs
+  // the potentially expensive historical-candle cleanup. All writes remain
+  // serialized by the store; cleanup failures are logged for diagnosis.
+  void store.pruneCandleHistory(timeframe).catch((error) => {
+    log("local_candle_prune_failed", { timeframe, error: error?.message || String(error) });
+  });
   const summary = {
     eligibleContracts: contracts.length,
     updatedContracts,
