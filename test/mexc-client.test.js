@@ -97,3 +97,20 @@ test("MEXC client accepts Min60 and converts hourly candle close times", async (
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("MEXC client accepts Min5 and converts five-minute candle close times", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get("interval"), "Min5");
+    return new Response(JSON.stringify({ success: true, data: {
+      time: [1_800_000_000], open: [1], high: [2], low: [0.5], close: [1.5], vol: [10], amount: [15]
+    }}), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const client = new MexcClient();
+    const candles = await client.getCandles("TEST_USDT", "Min5", 1_800_000_000, 1_800_000_300);
+    assert.equal(candles[0].close_time, new Date(1_800_000_300_000).toISOString());
+  } finally { globalThis.fetch = originalFetch; }
+});
