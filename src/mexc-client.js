@@ -130,7 +130,13 @@ export class MexcClient {
           throw new DOMException("Scan was stopped.", "AbortError");
         }
         if (timeoutSignal.aborted) {
-          throw new Error(`MEXC request timed out after ${timeoutMs} ms for ${path}`);
+          if (attempt < 3) {
+            // MEXC endpoints can occasionally stall even when connectivity is
+            // available. Retry timed-out requests with a short bounded backoff.
+            await sleep(750 * (2 ** attempt));
+            continue;
+          }
+          throw new Error(`MEXC request timed out after ${timeoutMs} ms for ${path} (4 attempts)`);
         }
         throw error;
       }
