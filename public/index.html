@@ -136,7 +136,7 @@
       </div>
     </div>
     <div class="table-wrap">
-      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col1m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"><col id="colVwapDaily" style="width:20%"></colgroup><thead><tr><th>نام ارز</th><th id="heading1m"><div class="results-heading"><span>۱ دقیقه</span><button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th><th id="headingVwapDaily">VWAP D</th></tr></thead>
+      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col1m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"><col id="colVwapDaily" style="width:20%"></colgroup><thead><tr><th>نام ارز</th><th id="heading1m"><div class="results-heading"><span>۱ دقیقه</span><button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th><th id="headingVwapDaily">VWAP</th></tr></thead>
       <tbody id="rows"><tr><td colspan="5" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
@@ -328,7 +328,7 @@ function renderRows(){
     }
     const dailyCell=document.createElement("span");
     dailyCell.textContent=fmt(item.vwapDaily);
-    dailyCell.title="VWAP روزانه بر اساس کندل‌های ۱۵ دقیقه‌ای";
+    dailyCell.title="VWAP بر اساس کندل‌های ۱۵ دقیقه‌ای";
     card.append(dailyCell);
     
     td.append(card);
@@ -374,7 +374,7 @@ async function exportResults(filteredOnly, chosenName){
     filterMessage.textContent="نتیجه‌ای برای خروجی گرفتن وجود ندارد.";
     return;
   }
-  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":tf==="Min15"?"۱۵ دقیقه":"۱ ساعت"),"VWAP D"];
+  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":tf==="Min15"?"۱۵ دقیقه":"۱ ساعت"),"VWAP"];
   const lines=[headings.join("\t"),...results.map(item=>[
     item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1)),item.vwapDaily===null?"—":fmt(item.vwapDaily)
   ].join("\t"))];
