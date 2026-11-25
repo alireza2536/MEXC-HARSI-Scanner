@@ -71,21 +71,27 @@ export function isEligibleCryptoBaseAsset(baseCoin) {
     && !isStockInstrument(baseCoin);
 }
 
-export class MexcClient {
-  #nextRequestAt = 0;
+export function createMexcRequestLimiter() {
+  let nextRequestAt = 0;
+  return async function waitForRequestSlot(signal) {
+    if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+    // One shared scheduler reserves request start times across all clients.
+    const scheduledAt = Math.max(Date.now(), nextRequestAt);
+    nextRequestAt = scheduledAt + Math.max(0, config.requestSpacingMs);
+    const wait = scheduledAt - Date.now();
+    if (wait > 0) await sleep(wait);
+    if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+  };
+}
 
-  constructor({ signal } = {}) {
+export class MexcClient {
+  constructor({ signal, requestLimiter } = {}) {
     this.signal = signal;
+    this.waitForRequestSlot = requestLimiter || createMexcRequestLimiter();
   }
 
   async #waitForRequestSlot() {
-    if (this.signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
-    // Reserve each start time synchronously so concurrent workers still
-    // respect the configured minimum spacing between MEXC requests.
-    const scheduledAt = Math.max(Date.now(), this.#nextRequestAt);
-    this.#nextRequestAt = scheduledAt + Math.max(0, config.requestSpacingMs);
-    const wait = scheduledAt - Date.now();
-    if (wait > 0) await sleep(wait);
+    await this.waitForRequestSlot(this.signal);
   }
 
   async #get(path, params = {}) {
