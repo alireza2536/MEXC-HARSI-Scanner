@@ -105,6 +105,7 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
           maxPrice: config.maxPrice,
           signal: controller.signal,
           timeframe,
+          workerCount: timeframes.length > 1 ? 3 : 5,
           onProgress: (progress) => {
             if (controller?.signal.aborted) return;
             progressByTimeframe.set(timeframe, progress);
@@ -113,8 +114,9 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
               total: total.total + item.total,
               remaining: total.remaining + item.remaining,
               updated: total.updated + item.updated,
-              failed: total.failed + item.failed
-            }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0 });
+              failed: total.failed + item.failed,
+              results: [...total.results, ...(item.results || [])]
+            }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, results: [] });
             onStatus?.({
               ...getStatus(),
               progress: { ...combined, timeframes: [...progressByTimeframe.keys()] }
