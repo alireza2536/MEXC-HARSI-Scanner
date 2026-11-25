@@ -9,7 +9,21 @@ import { createLocalSqliteStore } from "../src/local-sqlite-store.js";
 const DATABASE_NAME = "harsi_local";
 const BackgroundScan = registerPlugin("BackgroundScan");
 
-export async function startAndroidLocalApp({ onStatus } = {}) {
+let androidStartupPromise = null;
+
+export function startAndroidLocalApp(options = {}) {
+  // Capacitor can re-enter the app bootstrap after a WebView reload. Reuse
+  // one startup promise so the same SQLite database is never opened twice.
+  if (!androidStartupPromise) {
+    androidStartupPromise = startAndroidLocalAppOnce(options).catch((error) => {
+      androidStartupPromise = null;
+      throw error;
+    });
+  }
+  return androidStartupPromise;
+}
+
+async function startAndroidLocalAppOnce({ onStatus } = {}) {
   if (!Capacitor.isNativePlatform()) {
     throw new Error("Local SQLite mode is available only inside the Android app.");
   }
@@ -24,11 +38,32 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     db = connectionStatus.result
       ? await sqlite.retrieveConnection(DATABASE_NAME, false)
       : await sqlite.createConnection(DATABASE_NAME, false, "no-encryption", 1, false);
-    const isOpen = await db.isDBOpen();
-    if (!isOpen.result) await db.open();
-    // Give SQLite time to wait for short-lived readers/writers instead of
-    // failing immediately with SQLITE_BUSY / SQLITE_LOCKED.
-    // PRAGMA busy_timeout returns a row on Android, so it must use query/rawQuery, not execute.
+    // A previous WebView bootstrap may have left a short-lived native SQLite
+    // operation finishing. Do not create a second connection; wait for the
+    // existing connection to become available and retry transient SQLITE_BUSY.
+    let lastOpenError = null;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const isOpen = await db.isDBOpen();
+      if (isOpen.result) {
+        lastOpenError = null;
+        break;
+      }
+      try {
+        await db.open();
+        lastOpenError = null;
+        break;
+      } catch (error) {
+        lastOpenError = error;
+        const message = error?.message || String(error);
+        if (!/database is locked|SQLITE_BUSY|SQLITE_LOCKED|code 5/i.test(message) || attempt === 5) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+        await sqlite.checkConnectionsConsistency().catch(() => {});
+      }
+    }
+    if (lastOpenError) throw lastOpenError;
+    // Apply a bounded wait to subsequent native reads/writes as well.
     await db.query("PRAGMA busy_timeout = 10000;");
     store = createLocalSqliteStore(db);
     await store.initialize();
