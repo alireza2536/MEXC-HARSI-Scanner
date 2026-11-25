@@ -28,7 +28,7 @@ test("local SQLite store initializes schema and commits candle/HA rows atomicall
   const db = fakeConnection();
   const store = createLocalSqliteStore(db);
   await store.initialize();
-  assert.equal(db.executed.length, 14);
+  assert.equal(db.executed.length, 12);
   assert.match(db.queries[0].statement, /foreign_keys = ON/i);
   assert.ok(db.executed.some((sql) => sql.includes("mexc_futures_ohlcv_15m")));
   assert.ok(db.executed.some((sql) => sql.includes("mexc_harsi_results_15m")));
@@ -61,6 +61,7 @@ test("local SQLite store initializes schema and commits candle/HA rows atomicall
   assert.match(db.sets[0].set[0].statement, /mexc_futures_ohlcv_15m/);
   assert.match(db.sets[0].set[1].statement, /mexc_harsi_results_15m/);
   assert.match(db.sets[0].set[2].statement, /mexc_vwap_values/);
+  assert.doesNotMatch(db.sets[0].set[2].statement, /vwap_rolling|rolling_candle_count/);
   assert.equal(LOCAL_STORE_LIMITS.historyCandles, 2000);
   assert.equal(LOCAL_STORE_LIMITS.resultRetentionDays, 7);
 });
@@ -111,7 +112,7 @@ test("concurrent timeframe writes are serialized and initialization runs once", 
 
   const store = createLocalSqliteStore(db);
   await Promise.all([store.initialize(), store.initialize(), store.initialize()]);
-  assert.equal(db.executed.length, 14);
+  assert.equal(db.executed.length, 12);
 
   const item = {
     current: {
