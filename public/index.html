@@ -14,7 +14,7 @@
     button{width:100%;border:0;border-radius:12px;padding:15px 18px;font-size:16px;font-weight:700;color:#061321;background:#60d5b2;cursor:pointer}
     button:disabled{opacity:.55;cursor:not-allowed}
     #refresh,#applyFilter{color:#fff;background:#1E3A8A}
-    .timeframe-picker{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+    .timeframe-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
     .timeframe-picker button{background:#26364d;color:#e5edf8;border:1px solid #40536d}
     .timeframe-picker button.active{background:#1E3A8A;border-color:#1E3A8A;color:#fff}
     .timeframe-picker button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
@@ -77,6 +77,7 @@
     <div class="timeframe-picker" aria-label="انتخاب تایم‌فریم">
       <button id="timeframe1m" type="button" aria-pressed="false">۱ دقیقه</button>
       <button id="timeframe15m" type="button" aria-pressed="false">۱۵ دقیقه</button>
+      <button id="timeframe1h" type="button" aria-pressed="false">۱ ساعت</button>
     </div>
     <button id="refresh">بروزرسانی</button>
     <p class="refresh-note">پس از بروزرسانی، شاید دکمه بروزرسانی برای چند دقیقه<br>به‌دلیل پردازش اطلاعات غیرفعال بماند. لطفاً چند لحظه صبر کنید.</p>
@@ -107,6 +108,11 @@
           <div><input id="filterFrom15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
           <div><input id="filterTo15m" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
+        <div class="ha-filter-row" data-timeframe="Min60">
+          <span class="ha-filter-timeframe" data-timeframe-label="Min60">1h</span>
+          <div><input id="filterFrom1h" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
+          <div><input id="filterTo1h" class="ha-filter-number" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
+        </div>
       </div>
       <div class="ha-filter-actions">
         <button id="applyFilter" type="button">فیلتر</button>
@@ -130,7 +136,7 @@
       </div>
     </div>
     <div class="table-wrap">
-      <table id="resultsTable"><colgroup><col id="coinCol" style="width:33.333%"><col id="col1m" style="width:33.333%"><col id="col15m" style="width:33.333%"></colgroup><thead><tr><th>نام ارز</th><th id="heading1m">1m <button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></th><th id="heading15m">15m <button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></th></tr></thead>
+      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col1m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"></colgroup><thead><tr><th>نام ارز</th><th id="heading1m">1m <button id="sort1m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1m" title="مرتب‌سازی نزولی 1m">↓</button></th><th id="heading15m">15m <button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></th><th id="heading1h">1h <button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></th></tr></thead>
       <tbody id="rows"><tr><td colspan="3" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
@@ -139,6 +145,7 @@
 const button=document.getElementById("refresh");
 const timeframe1m=document.getElementById("timeframe1m");
 const timeframe15m=document.getElementById("timeframe15m");
+const timeframe1h=document.getElementById("timeframe1h");
 const selectedTimeframes=new Set();
 function resetActiveFilter(){
   activeRanges=null;
@@ -157,7 +164,7 @@ function toggleTimeframe(value){
   renderRows();
 }
 function updateTimeframeButtons(){
-  for(const [element,value,label] of [[timeframe1m,"Min1","۱ دقیقه"],[timeframe15m,"Min15","۱۵ دقیقه"]]){
+  for(const [element,value,label] of [[timeframe1m,"Min1","۱ دقیقه"],[timeframe15m,"Min15","۱۵ دقیقه"],[timeframe1h,"Min60","۱ ساعت"]]){
     const active=selectedTimeframes.has(value);
     element.classList.toggle("active",active);
     element.setAttribute("aria-pressed",String(active));
@@ -171,6 +178,7 @@ function updateTimeframeButtons(){
 }
 timeframe1m.addEventListener("click",()=>toggleTimeframe("Min1"));
 timeframe15m.addEventListener("click",()=>toggleTimeframe("Min15"));
+timeframe1h.addEventListener("click",()=>toggleTimeframe("Min60"));
 const message=document.getElementById("message");
 const progressTrack=document.querySelector(".progress-track");
 const progressFill=document.getElementById("progressFill");
@@ -183,9 +191,12 @@ const heading15m=document.getElementById("heading15m");
 const coinCol=document.getElementById("coinCol");
 const col1m=document.getElementById("col1m");
 const col15m=document.getElementById("col15m");
+const heading1h=document.getElementById("heading1h");
+const col1h=document.getElementById("col1h");
 const filterInputs={
   Min1:{from:document.getElementById("filterFrom1m"),to:document.getElementById("filterTo1m")},
-  Min15:{from:document.getElementById("filterFrom15m"),to:document.getElementById("filterTo15m")}
+  Min15:{from:document.getElementById("filterFrom15m"),to:document.getElementById("filterTo15m")},
+  Min60:{from:document.getElementById("filterFrom1h"),to:document.getElementById("filterTo1h")}
 };
 const filterRows=[...document.querySelectorAll(".ha-filter-row")];
 const filterFields=document.getElementById("haFilterFields");
@@ -193,6 +204,7 @@ const filterMessage=document.getElementById("filterMessage");
 const applyFilterButton=document.getElementById("applyFilter");
 const sort1m=document.getElementById("sort1m");
 const sort15m=document.getElementById("sort15m");
+const sort1h=document.getElementById("sort1h");
 function toEnglishDigits(value){
   return String(value??"")
     .replace(/[۰-۹]/g,digit=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
@@ -209,7 +221,7 @@ function updateFilterRows(){
   for(const row of filterRows) if(row.dataset.timeframe) row.hidden=!selectedTimeframes.has(row.dataset.timeframe);
 }
 updateFilterRows();
-let sortDirections={Min1:"desc",Min15:"desc"};
+let sortDirections={Min1:"desc",Min15:"desc",Min60:"desc"};
 let sortBy="Min1";
 let latestResults=[];
 let activeRanges=null;
@@ -222,8 +234,8 @@ function groupedResults(){
     // Normalize MEXC symbol variants before joining timeframe results.
     // Consume the optional separator with USDT (e.g. BTC_USDT -> BTC).
     const symbol=String(item.symbol||"").trim().toUpperCase().replace(/[_-]?USDT$/i,"").replace(/[_-]/g,"");
-    if(!symbol||!["Min1","Min15"].includes(item.timeframe)) continue;
-    if(!bySymbol.has(symbol)) bySymbol.set(symbol,{symbol,Min1:null,Min15:null});
+    if(!symbol||!["Min1","Min15","Min60"].includes(item.timeframe)) continue;
+    if(!bySymbol.has(symbol)) bySymbol.set(symbol,{symbol,Min1:null,Min15:null,Min60:null});
     const timeframe=item.timeframe;
     const value=Number(item.haClose);
     if(item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)){
@@ -235,21 +247,25 @@ function groupedResults(){
 function updateResultsColumns(){
   const show1m=selectedTimeframes.has("Min1");
   const show15m=selectedTimeframes.has("Min15");
+  const show1h=selectedTimeframes.has("Min60");
   heading1m.hidden=!show1m; col1m.hidden=!show1m;
   heading15m.hidden=!show15m; col15m.hidden=!show15m;
-  const columnCount=1+Number(show1m)+Number(show15m);
+  heading1h.hidden=!show1h; col1h.hidden=!show1h;
+  const columnCount=1+Number(show1m)+Number(show15m)+Number(show1h);
   // Keep the currency column anchored in its original slot and width.
-  coinCol.style.width="33.333%";
-  col1m.style.width="33.333%";
-  col15m.style.width="33.333%";
+  const width=(100/columnCount).toFixed(3)+"%";
+  coinCol.style.width=width;
+  col1m.style.width=width;
+  col15m.style.width=width;
+  col1h.style.width=width;
   if(!selectedTimeframes.has(sortBy)){
-    sortBy=show1m?"Min1":show15m?"Min15":"Min1";
+    sortBy=show1m?"Min1":show15m?"Min15":show1h?"Min60":"Min1";
   }
 }
 function renderRows(){
   updateResultsColumns();
   rows.replaceChildren();
-  const visibleTimeframes=["Min1","Min15"].filter(timeframe=>selectedTimeframes.has(timeframe));
+  const visibleTimeframes=["Min1","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe));
   const all=groupedResults();
   if(!visibleTimeframes.length){
     const tr=document.createElement("tr");
@@ -277,15 +293,15 @@ function renderRows(){
   for(const [index,item] of results.entries()){
     const tr=document.createElement("tr");
     const td=document.createElement("td");
-    td.colSpan=3;
+    td.colSpan=4;
     td.className="coin-card-cell";
     const card=document.createElement("div");
     card.className="coin-card"+(index%2===0?" alt":"");
-    card.style.gridTemplateColumns="repeat(3,minmax(0,1fr))";
+    card.style.gridTemplateColumns="repeat(4,minmax(0,1fr))";
     const coinCell=document.createElement("span");
     coinCell.textContent=item.symbol;
     card.append(coinCell);
-    for(const timeframe of ["Min1","Min15"]){
+    for(const timeframe of ["Min1","Min15","Min60"]){
       const cell=document.createElement("span");
       cell.textContent=selectedTimeframes.has(timeframe)?fmtHa(item[timeframe]):"";
       card.append(cell);
@@ -296,7 +312,7 @@ function renderRows(){
   }
   if(!results.length){
     const tr=document.createElement("tr");
-    const td=document.createElement("td");td.colSpan=3;td.className="muted";
+    const td=document.createElement("td");td.colSpan=4;td.className="muted";
     td.textContent=all.length?"مقداری در این بازه پیدا نشد.":"مقداری برای نمایش وجود ندارد.";
     tr.append(td);rows.append(tr);
   }
@@ -333,7 +349,7 @@ async function exportResults(filteredOnly, chosenName){
     filterMessage.textContent="نتیجه‌ای برای خروجی گرفتن وجود ندارد.";
     return;
   }
-  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":"۱۵ دقیقه")];
+  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min1"?"۱ دقیقه":tf==="Min15"?"۱۵ دقیقه":"۱ ساعت")];
   const lines=[headings.join("\t"),...results.map(item=>[
     item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1))
   ].join("\t"))];
@@ -400,7 +416,7 @@ saveFileName.addEventListener("keydown",event=>{
 function updateSortButton(button,timeframe){
   const direction=sortDirections[timeframe];
   button.textContent=direction==="asc"?"↑":"↓";
-  const label="مرتب‌سازی "+(direction==="asc"?"صعودی":"نزولی")+" "+(timeframe==="Min1"?"1m":"15m");
+  const label="مرتب‌سازی "+(direction==="asc"?"صعودی":"نزولی")+" "+(timeframe==="Min1"?"1m":timeframe==="Min15"?"15m":"1h");
   button.setAttribute("aria-label",label);
   button.title=label;
 }
@@ -413,8 +429,10 @@ function sortColumn(timeframe){
 }
 sort1m.addEventListener("click",()=>sortColumn("Min1"));
 sort15m.addEventListener("click",()=>sortColumn("Min15"));
+sort1h.addEventListener("click",()=>sortColumn("Min60"));
 updateSortButton(sort1m,"Min1");
 updateSortButton(sort15m,"Min15");
+updateSortButton(sort1h,"Min60");
 updateResultsColumns();
 function normalizeNumericInput(value){
   return String(value).trim()
