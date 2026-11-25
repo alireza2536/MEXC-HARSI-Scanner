@@ -171,7 +171,13 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       if (running) return getStatus();
       const selected = [...new Set(timeframes)].filter((value) => ["Min1", "Min15"].includes(value));
       if (!selected.length) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
-      await BackgroundScan.requestNotificationPermission();
+      // Notification permission is optional: Android can still run a foreground
+      // service when notifications are denied. Never block the market scan on it.
+      try {
+        await BackgroundScan.requestNotificationPermission();
+      } catch (permissionError) {
+        console.warn("Harsi notification permission was not granted; continuing scan.", permissionError);
+      }
       let serviceStarted = false;
       try {
         await BackgroundScan.start();
