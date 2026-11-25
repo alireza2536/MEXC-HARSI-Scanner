@@ -44,7 +44,9 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
   let completedAt = null;
 
   async function loadSavedRows() {
-    const savedRows = await store.getLatestHarsiResults(2000);
+    const savedRows = (await Promise.all(["Min1", "Min15"].map(async (timeframe) =>
+      (await store.getLatestHarsiResults(2000, timeframe)).map((row) => ({ ...row, timeframe }))
+    ))).flat();
     if (savedRows.length) {
       lastSummary = {
         eligibleContracts: savedRows.length,
@@ -56,6 +58,7 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
         completedAt: savedRows[0].close_time,
         results: savedRows.map((row) => ({
           symbol: row.symbol,
+          timeframe: row.timeframe,
           haClose: row.ha_close === null || row.ha_close === undefined ? null : Number(row.ha_close),
           candleOpenTime: row.open_time
         }))
@@ -83,7 +86,7 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     onStatus?.(getStatus());
   }
 
-  async function runScan() {
+  async function runScan(timeframes) {
     if (running) return;
     running = true;
     controller = new AbortController();
@@ -92,27 +95,39 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     publish();
 
     try {
-      const summary = await runLocalHarsiScan({
-        mexc: new MexcClient({ signal: controller.signal }),
-        store,
-        maxPrice: config.maxPrice,
-        signal: controller.signal,
-        onProgress: (progress) => {
+      const summaries = [];
+      for (const timeframe of timeframes) {
+        if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+        const summary = await runLocalHarsiScan({
+          mexc: new MexcClient({ signal: controller.signal }),
+          store,
+          maxPrice: config.maxPrice,
+          signal: controller.signal,
+          timeframe,
+          onProgress: (progress) => {
           if (!controller?.signal.aborted) {
-            onStatus?.({ ...getStatus(), progress });
+            onStatus?.({ ...getStatus(), progress: { ...progress, timeframe } });
             if (progress.processed === 1 || progress.processed % 5 === 0 || progress.processed === progress.total) {
               void BackgroundScan.update({
-                message: `پردازش ${progress.processed} از ${progress.total} ارز`,
+                message: `${timeframe === "Min1" ? "۱ دقیقه" : "۱۵ دقیقه"} — پردازش ${progress.processed} از ${progress.total} ارز`,
                 processed: progress.processed,
                 total: progress.total
               }).catch(() => {});
             }
           }
         }
-      });
+        });
+        summaries.push(summary);
+      }
       if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
-      lastSummary = summary;
-      completedAt = summary.completedAt;
+      lastSummary = {
+        eligibleContracts: summaries.reduce((sum, item) => sum + item.eligibleContracts, 0),
+        updatedContracts: summaries.reduce((sum, item) => sum + item.updatedContracts, 0),
+        failedContracts: summaries.reduce((sum, item) => sum + item.failedContracts, 0),
+        completedAt: new Date().toISOString(),
+        results: summaries.flatMap((item, index) => item.results.map((row) => ({ ...row, timeframe: timeframes[index] })))
+      };
+      completedAt = lastSummary.completedAt;
       activeJob = "completed";
       lastError = null;
     } catch (error) {
@@ -137,14 +152,16 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
       await BackgroundScan.stop().catch(() => {});
       return getStatus();
     },
-    async refreshNow() {
+    async refreshNow(timeframes = ["Min15"]) {
       if (running) return getStatus();
+      const selected = [...new Set(timeframes)].filter((value) => ["Min1", "Min15"].includes(value));
+      if (!selected.length) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
       await BackgroundScan.requestNotificationPermission();
       let serviceStarted = false;
       try {
         await BackgroundScan.start();
         serviceStarted = true;
-        await runScan();
+        await runScan(selected);
         return getStatus();
       } finally {
         // Always close the foreground service, including scan failures and
