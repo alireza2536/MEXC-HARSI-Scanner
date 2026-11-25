@@ -40,7 +40,7 @@ function publish(extra = {}) {
   windowRef?.webContents.send("harsi:status", { ...status(), ...extra });
 }
 async function loadSavedRows() {
-  const saved = (await Promise.all(["Min1", "Min15", "Min60"].map(async (timeframe) =>
+  const saved = (await Promise.all(["Min5", "Min55", "Min60"].map(async (timeframe) =>
     (await store.getLatestHarsiResults(2000, timeframe)).map((row) => ({
       symbol: row.symbol, timeframe, haClose: row.ha_close == null ? null : Number(row.ha_close),
       candleOpenTime: row.open_time
@@ -142,7 +142,7 @@ app.whenReady().then(async () => {
   createWindow();
   ipcMain.handle("harsi:status", () => status());
   ipcMain.handle("harsi:refresh", async (_event, timeframes) => {
-    const selected = [...new Set(timeframes || [])].filter((v) => ["Min1", "Min15", "Min60"].includes(v));
+    const selected = [...new Set(timeframes || [])].filter((v) => ["Min5", "Min55", "Min60"].includes(v));
     if (!selected.length) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
     if (running) return status();
     void runScan(selected);
