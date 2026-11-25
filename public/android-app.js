@@ -97,7 +97,7 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
     try {
       const requestLimiter = createMexcRequestLimiter();
       const progressByTimeframe = new Map();
-      const summaries = await Promise.all(timeframes.map(async (timeframe) => {
+      const outcomes = await Promise.allSettled(timeframes.map(async (timeframe) => {
         if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
         return runLocalHarsiScan({
           mexc: new MexcClient({ signal: controller.signal, requestLimiter }),
@@ -130,6 +130,9 @@ export async function startAndroidLocalApp({ onStatus } = {}) {
         });
       }));
       if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+      const failedScan = outcomes.find((outcome) => outcome.status === "rejected");
+      if (failedScan) throw failedScan.reason;
+      const summaries = outcomes.map((outcome) => outcome.value);
       lastSummary = {
         eligibleContracts: summaries.reduce((sum, item) => sum + item.eligibleContracts, 0),
         updatedContracts: summaries.reduce((sum, item) => sum + item.updatedContracts, 0),
