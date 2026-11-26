@@ -133,7 +133,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   function queuePersistence(batch) {
     persistQueue = persistQueue.then(async () => {
       try {
-        await store.persistCurrentBatch(batch, timeframe);
+        const rollingFourHourRows = await store.persistCurrentBatch(batch, timeframe);
         updatedContracts += batch.length;
         for (const item of batch) {
           results.push({
@@ -146,6 +146,21 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
             vwapDaily: item.currentVwap.vwap_daily,
             candleOpenTime: item.current.open_time
           });
+          if (timeframe === "Min60" && Array.isArray(rollingFourHourRows)) {
+            const pair = rollingFourHourRows
+              .filter((row) => row.symbol === item.contract.symbol)
+              .sort((a, b) => Date.parse(a.open_time) - Date.parse(b.open_time));
+            if (pair.length === 2) {
+              results.push({
+                timeframe: "Min240",
+                symbol: item.contract.symbol,
+                candleClose: pair[1].close_price,
+                previousCandleClose: pair[0].close_price,
+                vwapDaily: pair[1].vwap_daily,
+                candleOpenTime: pair[1].open_time
+              });
+            }
+          }
         }
       } catch (error) {
         failedContracts += batch.length;
