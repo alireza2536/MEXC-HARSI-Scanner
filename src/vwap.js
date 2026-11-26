@@ -9,3 +9,9 @@ export function calculateDailyVwap(candles,nowMs=Date.now()){
  const daily=ordered.filter(item=>item.timestamp>=utcDayStart.getTime()).map(item=>item.candle);
  return {vwap_daily:weightedVwap(daily),daily_candle_count:daily.length};
 }
+
+/** True only when the previous candle was at/below VWAP and the current candle is above it. */
+export function isCrossUp(previousClose, currentClose, vwap) {
+ const previous=Number(previousClose),current=Number(currentClose),level=Number(vwap);
+ return [previous,current,level].every(Number.isFinite)&&previous<=level&&current>level;
+}
