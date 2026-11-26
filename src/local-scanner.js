@@ -1,6 +1,6 @@
 import { calculateHarsi } from "./harsi.js";
 import { hasCompleteCandleWindow } from "./candle-history-cache.js";
-import { calculateDailyVwap } from "./vwap.js";
+import { aggregateRollingFourHourCandles, calculateDailyVwap } from "./vwap.js";
 
 export async function getSharedDailyVwap({ mexc, symbol, timeframe, candles, serverNowMs, nowSeconds, cache = new Map() }) {
   const utcDayStart = new Date(serverNowMs);
@@ -27,10 +27,11 @@ const HISTORY_CANDLES = 2000;
 const PERSISTENCE_BATCH_SIZE = 10;
 
 class IncompleteCandleHistoryError extends Error {
-  constructor(expected, received) {
+  constructor(expected, received, rollingWindowInvalid = false) {
     super(`History is incomplete or non-consecutive: expected ${expected} prior candles, received ${received} valid candles`);
     this.name = "IncompleteCandleHistoryError";
     this.code = "INCOMPLETE_CANDLE_HISTORY";
+    this.rollingWindowInvalid = rollingWindowInvalid;
   }
 }
 
@@ -73,7 +74,16 @@ async function getHistory(store, mexc, symbol, currentOpen, signal, timeframe, c
     expectedLastOpen,
     candleSeconds * 1000
   )) {
-    throw new IncompleteCandleHistoryError(HISTORY_CANDLES, historical.length);
+    const latestEight = historical.slice(-8);
+    const rollingWindowInvalid = timeframe === "Min60" && (
+      !hasCompleteCandleWindow(latestEight, 8, expectedLastOpen, candleSeconds * 1000)
+      || aggregateRollingFourHourCandles(latestEight).length !== 2
+    );
+    throw new IncompleteCandleHistoryError(
+      HISTORY_CANDLES,
+      historical.length,
+      rollingWindowInvalid
+    );
   }
   await store.upsertCandles(historical, timeframe);
   return { candles: historical, cacheHit: false };
@@ -225,6 +235,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
         if (signal?.aborted || error.name === "AbortError") return;
         if (timeframe === "Min60"
             && error?.code === "INCOMPLETE_CANDLE_HISTORY"
+            && error.rollingWindowInvalid
             && typeof store.invalidateRollingFourHour === "function") {
           try {
             await store.invalidateRollingFourHour(contract.symbol);
