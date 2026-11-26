@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getSharedDailyVwap } from "../src/local-scanner.js";
+import { isCrossUp } from "../src/vwap.js";
 
 function candle(time, high, low, close, volume) {
   return { open_time: new Date(time).toISOString(), high_price: high, low_price: low, close_price: close, volume };
@@ -44,4 +45,13 @@ test("15m scan calculates canonical VWAP from its own 15m candle window", async 
   assert.equal(calls, 0);
   assert.equal(value.daily_candle_count, 1);
   assert.ok(Math.abs(value.vwap_daily - 18) < 1e-12);
+});
+
+test("Cross Up requires previous close at/below VWAP and current close above", () => {
+  assert.equal(isCrossUp(99, 101, 100), true);
+  assert.equal(isCrossUp(100, 100.01, 100), true);
+  assert.equal(isCrossUp(100.01, 101, 100), false);
+  assert.equal(isCrossUp(99, 100, 100), false);
+  assert.equal(isCrossUp(null, 101, 100), false);
+  assert.equal(isCrossUp(99, NaN, 100), false);
 });
