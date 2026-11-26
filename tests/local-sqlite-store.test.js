@@ -149,3 +149,46 @@ test("concurrent timeframe writes are serialized and initialization runs once", 
   assert.equal(db.sets.length, 4);
   assert.ok(db.sets.every((batch) => batch.transaction === true));
 });
+
+
+test("local SQLite store persists exactly two rolling 4-hour rows after hourly updates", async () => {
+  const db = fakeConnection();
+  const start = Date.parse("2026-11-26T00:00:00.000Z");
+  const hourly = Array.from({ length: 8 }, (_, index) => ({
+    symbol: "BTC_USDT",
+    open_time: new Date(start + index * 3600000).toISOString(),
+    close_time: new Date(start + (index + 1) * 3600000).toISOString(),
+    open_price: 100 + index, high_price: 105 + index, low_price: 95 + index,
+    close_price: 102 + index, volume: 10, amount: 1000
+  }));
+  const originalQuery = db.query.bind(db);
+  db.query = async (statement, values) => {
+    if (statement.includes("FROM mexc_futures_ohlcv_1h")) return { values: hourly };
+    return originalQuery(statement, values);
+  };
+  const store = createLocalSqliteStore(db);
+  const item = {
+    current: { ...hourly[7] },
+    currentHarsi: {
+      symbol: "BTC_USDT", open_time: hourly[7].open_time, close_time: hourly[7].close_time,
+      rsi_open: 50, rsi_high: 55, rsi_low: 45, rsi_close: 52,
+      ha_open: 50, ha_high: 55, ha_low: 45, ha_close: 52,
+      scan_match: null, calculation_version: "test"
+    },
+    currentVwap: { vwap_daily: 103.5, daily_candle_count: 20 }
+  };
+  const rows = await store.persistCurrentBatch([item], "Min60");
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].open_time, hourly[0].open_time);
+  assert.equal(rows[1].open_time, hourly[4].open_time);
+  assert.equal(rows[0].vwap_daily, 103.5);
+  assert.equal(db.sets.length, 2);
+  assert.equal(db.sets[1].transaction, true);
+  assert.equal(db.sets[1].set.length, 3);
+  assert.match(db.sets[1].set[0].statement, /DELETE FROM mexc_futures_ohlcv_4h/);
+  assert.equal(db.sets[1].set.filter((operation) => /INSERT INTO mexc_futures_ohlcv_4h/.test(operation.statement)).length, 2);
+
+  await store.getLatestVwap4hResults();
+  assert.match(db.queries.at(-1).statement, /ROW_NUMBER\(\) OVER/);
+  assert.match(db.queries.at(-1).statement, /previous\.position = 2/);
+});
