@@ -71,16 +71,27 @@ export function isEligibleCryptoBaseAsset(baseCoin) {
     && !isStockInstrument(baseCoin);
 }
 
-export class MexcClient {
-  #nextRequestAt = 0;
-
-  async #waitForRequestSlot() {
-    // Reserve each start time synchronously so concurrent workers still
-    // respect the configured minimum spacing between MEXC requests.
-    const scheduledAt = Math.max(Date.now(), this.#nextRequestAt);
-    this.#nextRequestAt = scheduledAt + Math.max(0, config.requestSpacingMs);
+export function createMexcRequestLimiter() {
+  let nextRequestAt = 0;
+  return async function waitForRequestSlot(signal) {
+    if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+    // One shared scheduler reserves request start times across all clients.
+    const scheduledAt = Math.max(Date.now(), nextRequestAt);
+    nextRequestAt = scheduledAt + Math.max(0, config.requestSpacingMs);
     const wait = scheduledAt - Date.now();
     if (wait > 0) await sleep(wait);
+    if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+  };
+}
+
+export class MexcClient {
+  constructor({ signal, requestLimiter } = {}) {
+    this.signal = signal;
+    this.waitForRequestSlot = requestLimiter || createMexcRequestLimiter();
+  }
+
+  async #waitForRequestSlot() {
+    await this.waitForRequestSlot(this.signal);
   }
 
   async #get(path, params = {}) {
@@ -89,22 +100,48 @@ export class MexcClient {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
     }
 
-    let response;
     for (let attempt = 0; attempt < 4; attempt += 1) {
       await this.#waitForRequestSlot();
-      response = await fetch(url, { headers: { accept: "application/json" } });
-      if (response.ok) break;
-      if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 3) {
-        throw new Error(`MEXC HTTP ${response.status} for ${path}`);
-      }
-      await sleep(500 * (2 ** attempt));
-    }
+      const timeoutMs = Math.max(1000, Number(config.requestTimeoutMs) || 25000);
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
+      const requestSignal = this.signal
+        ? AbortSignal.any([this.signal, timeoutSignal])
+        : timeoutSignal;
+      try {
+        const response = await fetch(url, {
+          headers: { accept: "application/json" },
+          signal: requestSignal
+        });
+        if (!response.ok) {
+          if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 3) {
+            throw new Error(`MEXC HTTP ${response.status} for ${path}`);
+          }
+          await sleep(500 * (2 ** attempt));
+          continue;
+        }
 
-    const body = await response.json();
-    if (body?.success === false || (body?.code !== undefined && Number(body.code) !== 0)) {
-      throw new Error(`MEXC API error for ${path}: ${body.message || body.code || "unknown"}`);
+        const body = await response.json();
+        if (body?.success === false || (body?.code !== undefined && Number(body.code) !== 0)) {
+          throw new Error(`MEXC API error for ${path}: ${body.message || body.code || "unknown"}`);
+        }
+        return body?.data;
+      } catch (error) {
+        if (this.signal?.aborted) {
+          throw new DOMException("Scan was stopped.", "AbortError");
+        }
+        if (timeoutSignal.aborted) {
+          if (attempt < 3) {
+            // MEXC endpoints can occasionally stall even when connectivity is
+            // available. Retry timed-out requests with a short bounded backoff.
+            await sleep(750 * (2 ** attempt));
+            continue;
+          }
+          throw new Error(`MEXC request timed out after ${timeoutMs} ms for ${path} (4 attempts)`);
+        }
+        throw error;
+      }
     }
-    return body?.data;
+    throw new Error(`MEXC request failed for ${path}`);
   }
 
   async getServerTimeMs() {
@@ -156,10 +193,12 @@ export class MexcClient {
       .filter((item) => Number.isFinite(item.lastPrice) && item.lastPrice > 0 && item.lastPrice < maxPrice);
   }
 
-  async get15mCandles(symbol, startSeconds, endSeconds) {
+  async getCandles(symbol, interval, startSeconds, endSeconds) {
+    if (!["Min5", "Min15", "Min60"].includes(interval)) throw new Error(`Unsupported MEXC interval: ${interval}`);
+    const intervalSeconds = interval === "Min5" ? 300 : interval === "Min15" ? 900 : 3600;
     const data = await this.#get(
       `/api/v1/contract/kline/${encodeURIComponent(symbol)}`,
-      { interval: "Min15", start: startSeconds, end: endSeconds }
+      { interval, start: startSeconds, end: endSeconds }
     );
 
     if (!data || !Array.isArray(data.time)) {
@@ -188,9 +227,21 @@ export class MexcClient {
       return {
         symbol,
         open_time: new Date(Number(time) * 1000).toISOString(),
-        close_time: new Date((Number(time) + 900) * 1000).toISOString(),
+        close_time: new Date((Number(time) + intervalSeconds) * 1000).toISOString(),
         ...values
       };
     });
+  }
+
+  async get5mCandles(symbol, startSeconds, endSeconds) {
+    return this.getCandles(symbol, "Min5", startSeconds, endSeconds);
+  }
+
+  async get15mCandles(symbol, startSeconds, endSeconds) {
+    return this.getCandles(symbol, "Min15", startSeconds, endSeconds);
+  }
+
+  async get1hCandles(symbol, startSeconds, endSeconds) {
+    return this.getCandles(symbol, "Min60", startSeconds, endSeconds);
   }
 }

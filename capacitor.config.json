@@ -1,0 +1,16 @@
+{
+  "appId": "com.personal.harsi",
+  "appName": "Harsi Scanner",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
