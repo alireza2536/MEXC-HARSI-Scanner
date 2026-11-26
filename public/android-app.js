@@ -96,13 +96,13 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
     }));
     if (savedRows.length || savedFourHourRows.length) {
       lastSummary = {
-        eligibleContracts: savedRows.length,
-        updatedContracts: savedRows.length,
+        eligibleContracts: Math.max(savedRows.length, savedFourHourRows.length),
+        updatedContracts: Math.max(savedRows.length, savedFourHourRows.length),
         failedContracts: 0,
         historyCacheHits: 0,
         historyBackfills: 0,
-        candleOpenTime: savedRows[0].open_time,
-        completedAt: savedRows[0].close_time,
+        candleOpenTime: savedRows[0]?.open_time || savedFourHourRows[0]?.candleOpenTime,
+        completedAt: savedRows[0]?.close_time || savedFourHourRows[0]?.candleOpenTime,
         results: [
           ...savedRows.map((row) => ({
             symbol: row.symbol,
