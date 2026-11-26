@@ -12,6 +12,9 @@ export function calculateDailyVwap(candles,nowMs=Date.now()){
 
 /** True only when the previous candle was at/below VWAP and the current candle is above it. */
 export function isCrossUp(previousClose, currentClose, vwap) {
+ const validInput = (value) => value !== null && value !== undefined
+  && !(typeof value === "string" && value.trim() === "");
+ if (![previousClose, currentClose, vwap].every(validInput)) return false;
  const previous=Number(previousClose),current=Number(currentClose),level=Number(vwap);
  return [previous,current,level].every(Number.isFinite)&&previous<=level&&current>level;
 }
