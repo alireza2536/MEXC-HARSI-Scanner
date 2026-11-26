@@ -310,7 +310,25 @@ function useEnglishDigits(input){
 }
 for(const pair of Object.values(filterInputs)) for(const input of [pair.from,pair.to]){
   input.style.textAlign="center";
-  input.addEventListener("input",()=>{useEnglishDigits(input);input.style.textAlign="center";});
+  input.addEventListener("input",()=>{
+    useEnglishDigits(input);
+    input.style.textAlign="center";
+    // Re-evaluate HARSI ranges as soon as every enabled timeframe has two valid values.
+    if(filterTimeframes.size){
+      const ready=[...filterTimeframes].every(timeframe=>{
+        const rangeInputs=filterInputs[timeframe];
+        const from=normalizeNumericInput(rangeInputs.from.value);
+        const to=normalizeNumericInput(rangeInputs.to.value);
+        return from!==""&&to!==""&&Number.isFinite(Number(from))&&Number.isFinite(Number(to));
+      });
+      if(ready){
+        refreshActiveRanges();
+        renderRows();
+      }else{
+        filterMessage.textContent="برای اعمال بازه HARSI، مقدار «از» و «تا» را کامل کنید.";
+      }
+    }
+  });
   input.addEventListener("focus",()=>{input.value="";input.style.textAlign="center";});
   useEnglishDigits(input);
 }
