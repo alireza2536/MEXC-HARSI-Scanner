@@ -107,27 +107,18 @@
       <div class="vwap-filter-row" data-vwap-timeframe="Min5">
         <span class="vwap-filter-timeframe">5m</span>
         <div class="vwap-filter-options">
-          <button type="button" data-vwap-condition="all" class="active" aria-pressed="true">همه</button>
-          <button type="button" data-vwap-condition="gte" aria-pressed="false">P ≥ VW</button>
-          <button type="button" data-vwap-condition="lt" aria-pressed="false">VW &gt; P</button>
           <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
         </div>
       </div>
       <div class="vwap-filter-row" data-vwap-timeframe="Min15">
         <span class="vwap-filter-timeframe">15m</span>
         <div class="vwap-filter-options">
-          <button type="button" data-vwap-condition="all" class="active" aria-pressed="true">همه</button>
-          <button type="button" data-vwap-condition="gte" aria-pressed="false">P ≥ VW</button>
-          <button type="button" data-vwap-condition="lt" aria-pressed="false">VW &gt; P</button>
           <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
         </div>
       </div>
       <div class="vwap-filter-row" data-vwap-timeframe="Min60">
         <span class="vwap-filter-timeframe">1h</span>
         <div class="vwap-filter-options">
-          <button type="button" data-vwap-condition="all" class="active" aria-pressed="true">همه</button>
-          <button type="button" data-vwap-condition="gte" aria-pressed="false">P ≥ VW</button>
-          <button type="button" data-vwap-condition="lt" aria-pressed="false">VW &gt; P</button>
           <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
         </div>
       </div>
@@ -189,15 +180,13 @@ const timeframe15m=document.getElementById("timeframe15m");
 const timeframe1h=document.getElementById("timeframe1h");
 const selectedTimeframes=new Set();
 const filterTimeframes=new Set();
-const vwapConditions={Min5:"all",Min15:"all",Min60:"all"};
+const vwapConditions={Min5:null,Min15:null,Min60:null};
 function vwapConditionMatches(item){
   return ["Min5","Min15","Min60"].every(timeframe=>{
     const condition=vwapConditions[timeframe];
-    if(condition==="all") return true;
+    if(!condition) return true;
     const price=item["price"+timeframe],previousPrice=item["previousPrice"+timeframe],vwap=item["vwap"+timeframe];
     if(price===null||price===undefined||vwap===null||vwap===undefined) return false;
-    if(condition==="gte") return price>=vwap;
-    if(condition==="lt") return price<vwap;
     return condition==="crossUp"&&previousPrice!==null&&previousPrice!==undefined&&Number.isFinite(previousPrice)&&previousPrice<=vwap&&price>vwap;
   });
 }
@@ -205,12 +194,11 @@ for(const row of document.querySelectorAll(".vwap-filter-row")){
   const timeframe=row.dataset.vwapTimeframe;
   for(const control of row.querySelectorAll("button[data-vwap-condition]")){
     control.addEventListener("click",()=>{
-      vwapConditions[timeframe]=control.dataset.vwapCondition;
-      for(const option of row.querySelectorAll("button[data-vwap-condition]")){
-        const active=option===control;
-        option.classList.toggle("active",active);
-        option.setAttribute("aria-pressed",String(active));
-      }
+      const selected=control.dataset.vwapCondition;
+      vwapConditions[timeframe]=vwapConditions[timeframe]===selected?null:selected;
+      const active=vwapConditions[timeframe]===selected;
+      control.classList.toggle("active",active);
+      control.setAttribute("aria-pressed",String(active));
       renderRows();
     });
   }
