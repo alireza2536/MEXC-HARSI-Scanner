@@ -174,8 +174,8 @@
       </div>
     </div>
     <div class="table-wrap">
-      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col5m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"><col id="colVwapDaily" style="width:20%"></colgroup><thead><tr><th>نام ارز</th><th id="heading5m"><div class="results-heading"><span>۵ دقیقه</span><button id="sort5m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 5m" title="مرتب‌سازی نزولی 5m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th><th id="headingVwapDaily">VWAP</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="5" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
+      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col5m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"></colgroup><thead><tr><th>نام ارز</th><th id="heading5m"><div class="results-heading"><span>۵ دقیقه</span><button id="sort5m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 5m" title="مرتب‌سازی نزولی 5m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
 </main>
@@ -268,7 +268,7 @@ const col5m=document.getElementById("col5m");
 const col15m=document.getElementById("col15m");
 const heading1h=document.getElementById("heading1h");
 const col1h=document.getElementById("col1h");
-const colVwapDaily=document.getElementById("colVwapDaily");
+
 const filterInputs={
   Min5:{from:document.getElementById("filterFrom5m"),to:document.getElementById("filterTo5m")},
   Min15:{from:document.getElementById("filterFrom15m"),to:document.getElementById("filterTo15m")},
@@ -347,14 +347,13 @@ function updateResultsColumns(){
   heading5m.hidden=!show5m; col5m.hidden=!show5m;
   heading15m.hidden=!show15m; col15m.hidden=!show15m;
   heading1h.hidden=!show1h; col1h.hidden=!show1h;
-  const columnCount=2+Number(show5m)+Number(show15m)+Number(show1h);
+  const columnCount=1+Number(show5m)+Number(show15m)+Number(show1h);
   // Keep the currency column anchored in its original slot and width.
   const width=(100/columnCount).toFixed(3)+"%";
   coinCol.style.width=width;
   col5m.style.width=width;
   col15m.style.width=width;
   col1h.style.width=width;
-  colVwapDaily.style.width=width;
   if(!displayTimeframes.has(sortBy)){
     sortBy=show5m?"Min5":show15m?"Min15":show1h?"Min60":"Min5";
   }
@@ -385,12 +384,12 @@ function renderRows(){
   for(const [index,item] of results.entries()){
     const tr=document.createElement("tr");
     const td=document.createElement("td");
-    td.colSpan=5;
+    td.colSpan=4;
     td.className="coin-card-cell";
     const card=document.createElement("div");
     card.className="coin-card"+(index%2===0?" alt":"");
     const visibleTimeframes=["Min5","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
-    card.style.gridTemplateColumns="repeat("+(visibleTimeframes.length+2)+",minmax(0,1fr))";
+    card.style.gridTemplateColumns="repeat("+(visibleTimeframes.length+1)+",minmax(0,1fr))";
     const coinCell=document.createElement("span");
     coinCell.textContent=item.symbol;
     card.append(coinCell);
@@ -401,11 +400,6 @@ function renderRows(){
       cell.textContent=fmtHa(value);
       card.append(cell);
     }
-    const dailyCell=document.createElement("span");
-    dailyCell.textContent=fmt(item.vwapDaily);
-    dailyCell.title="VWAP بر اساس کندل‌های ۱۵ دقیقه‌ای";
-    card.append(dailyCell);
-    
     td.append(card);
     tr.append(td);
     rows.append(tr);
