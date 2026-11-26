@@ -85,7 +85,16 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
     const savedRows = (await Promise.all(["Min5", "Min15", "Min60"].map(async (timeframe) =>
       (await store.getLatestHarsiResults(2000, timeframe)).map((row) => ({ ...row, timeframe }))
     ))).flat();
-    if (savedRows.length) {
+    const savedFourHourRows = (await store.getLatestVwap4hResults(2000)).map((row) => ({
+      symbol: row.symbol,
+      timeframe: "Min240",
+      candleClose: row.close_price === null || row.close_price === undefined ? null : Number(row.close_price),
+      previousCandleClose: row.previous_close_price === null || row.previous_close_price === undefined
+        ? null : Number(row.previous_close_price),
+      vwapDaily: row.vwap_daily === null || row.vwap_daily === undefined ? null : Number(row.vwap_daily),
+      candleOpenTime: row.close_time
+    }));
+    if (savedRows.length || savedFourHourRows.length) {
       lastSummary = {
         eligibleContracts: savedRows.length,
         updatedContracts: savedRows.length,
@@ -94,16 +103,19 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
         historyBackfills: 0,
         candleOpenTime: savedRows[0].open_time,
         completedAt: savedRows[0].close_time,
-        results: savedRows.map((row) => ({
-          symbol: row.symbol,
-          timeframe: row.timeframe,
-          haClose: row.ha_close === null || row.ha_close === undefined ? null : Number(row.ha_close),
-          vwapDaily: row.vwap_daily === null || row.vwap_daily === undefined ? null : Number(row.vwap_daily),
-          candleClose: row.close_price === null || row.close_price === undefined ? null : Number(row.close_price),
-          previousCandleClose: row.previous_close_price === null || row.previous_close_price === undefined
-            ? null : Number(row.previous_close_price),
-          candleOpenTime: row.open_time
-        }))
+        results: [
+          ...savedRows.map((row) => ({
+            symbol: row.symbol,
+            timeframe: row.timeframe,
+            haClose: row.ha_close === null || row.ha_close === undefined ? null : Number(row.ha_close),
+            vwapDaily: row.vwap_daily === null || row.vwap_daily === undefined ? null : Number(row.vwap_daily),
+            candleClose: row.close_price === null || row.close_price === undefined ? null : Number(row.close_price),
+            previousCandleClose: row.previous_close_price === null || row.previous_close_price === undefined
+              ? null : Number(row.previous_close_price),
+            candleOpenTime: row.open_time
+          })),
+          ...savedFourHourRows
+        ]
       };
       completedAt = lastSummary.completedAt;
     } else {
