@@ -53,5 +53,7 @@ test("Cross Up requires previous close at/below VWAP and current close above", (
   assert.equal(isCrossUp(100.01, 101, 100), false);
   assert.equal(isCrossUp(99, 100, 100), false);
   assert.equal(isCrossUp(null, 101, 100), false);
+  assert.equal(isCrossUp(undefined, 101, 100), false);
+  assert.equal(isCrossUp("", 101, 100), false);
   assert.equal(isCrossUp(99, NaN, 100), false);
 });
