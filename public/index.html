@@ -13,12 +13,12 @@
     .refresh-note{width:100%;max-width:320px;margin:6px auto 10px;transform:none;color:#94a3b8;font-size:8px;line-height:1.6;text-align:center;white-space:normal}
     button{width:100%;border:0;border-radius:12px;padding:15px 18px;font-size:16px;font-weight:700;color:#061321;background:#60d5b2;cursor:pointer}
     button:disabled{opacity:.55;cursor:not-allowed}
-    #refresh,#applyFilter{color:#fff;background:#1E3A8A}
+    #refresh{color:#fff;background:#1E3A8A}
     .timeframe-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
     .timeframe-picker button{background:#26364d;color:#e5edf8;border:1px solid #40536d;padding:8px 6px;font-size:13px;line-height:1.2;border-radius:9px;min-height:36px}
     .timeframe-picker button.active{background:#1E3A8A;border-color:#1E3A8A;color:#fff}
     .timeframe-picker button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
-    #refresh.is-cancel,#applyFilter.is-remove{background:#9F1239}
+    #refresh.is-cancel{background:#9F1239}
     .progress-track{height:9px;margin:18px 0 9px;background:#26364d;border-radius:999px;overflow:hidden}
     .progress-fill{height:100%;width:0;background:#16a36a;border-radius:999px;transition:width .25s ease}
     .progress-details{display:none;align-items:center;justify-content:space-between;gap:12px;font-size:15px}
@@ -51,8 +51,9 @@
     .ha-filter-headings span{padding:2px}
     .ha-filter label{display:block;color:#9fb0c7;font-size:12px;margin-bottom:7px;text-align:center;visibility:hidden}
     .ha-filter input{width:100%;min-width:0;background:#172438;color:#e5edf8;border:1px solid #354862;border-radius:10px;padding:12px;text-align:center !important;font:inherit;font-size:16px;direction:ltr;font-variant-numeric:tabular-nums}
-    .ha-filter-actions{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
-    .ha-filter-actions button{padding:11px 14px;font-size:14px}
+    .ha-filter-timeframe{min-height:46px;padding:0;border:1px solid #405879;border-radius:10px;background:#263b59;color:#e5edf8;font-size:14px;font-weight:700;cursor:pointer}
+    .ha-filter-timeframe.active{background:#1D4ED8;border-color:#1D4ED8;color:#fff}
+    .ha-filter-timeframe:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
     #filterMessage{margin:10px 0 0;text-align:center;font-size:12px;color:#9fb0c7;min-height:18px}
     .export-menu-wrap{display:flex;justify-content:flex-end;position:relative;margin:10px 0 4px}
     #exportMenuToggle{width:42px;height:42px;padding:0;border:1px solid #40536d;border-radius:10px;background:#26364d;color:#e5edf8;font-size:25px;line-height:1}
@@ -149,9 +150,6 @@
           <div><input id="filterTo1h" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
         </div>
       </div>
-      <div class="ha-filter-actions">
-        <button id="applyFilter" type="button">فیلتر</button>
-      </div>
       <p id="filterMessage" aria-live="polite">دو مقدار دلخواه وارد کنید؛ مثبت و منفی پذیرفته می‌شود.</p>
     </div>
     <div class="export-menu-wrap">
@@ -210,11 +208,29 @@ for(const row of document.querySelectorAll(".vwap-filter-row")){
     });
   }
 }
-function resetActiveFilter(){
-  activeRanges=null;
-  applyFilterButton.textContent="فیلتر";
-  applyFilterButton.classList.remove("is-remove");
-  applyFilterButton.setAttribute("aria-label","فیلتر");
+function refreshActiveRanges(){
+  const ranges={};
+  for(const timeframe of filterTimeframes){
+    const pair=filterInputs[timeframe];
+    const fromText=normalizeNumericInput(pair.from.value),toText=normalizeNumericInput(pair.to.value);
+    if(fromText===""||toText===""){
+      filterMessage.textContent="لطفاً مقدار «از» و «تا» را برای "+(timeframe==="Min5"?"5m":timeframe==="Min15"?"15m":"1h")+" وارد کنید.";
+      activeRanges=null;
+      return false;
+    }
+    const from=Number(fromText),to=Number(toText);
+    if(!Number.isFinite(from)||!Number.isFinite(to)){
+      filterMessage.textContent="مقادیر فیلتر باید عدد معتبر باشند.";
+      activeRanges=null;
+      return false;
+    }
+    ranges[timeframe]={min:Math.min(from,to),max:Math.max(from,to)};
+  }
+  activeRanges=Object.keys(ranges).length?ranges:null;
+  filterMessage.textContent=filterTimeframes.size
+    ? "فیلتر HARSI برای تایم‌فریم‌های روشن فعال است."
+    : "هیچ تایم‌فریمی انتخاب نشده؛ همه مقادیر نمایش داده می‌شوند.";
+  return true;
 }
 function toggleTimeframe(value){
   if(selectedTimeframes.has(value)){
@@ -245,7 +261,11 @@ for(const element of document.querySelectorAll(".ha-filter-timeframe[data-timefr
     const timeframe=element.dataset.timeframeLabel;
     if(filterTimeframes.has(timeframe)) filterTimeframes.delete(timeframe);
     else filterTimeframes.add(timeframe);
-    resetActiveFilter();
+    if(!refreshActiveRanges()){
+      filterTimeframes.delete(timeframe);
+      updateFilterTimeframeButtons();
+      refreshActiveRanges();
+    }
     updateFilterTimeframeButtons();
     renderRows();
   });
@@ -277,7 +297,6 @@ const filterInputs={
 const filterRows=[...document.querySelectorAll(".ha-filter-row")];
 const filterFields=document.getElementById("haFilterFields");
 const filterMessage=document.getElementById("filterMessage");
-const applyFilterButton=document.getElementById("applyFilter");
 const sort5m=document.getElementById("sort5m");
 const sort15m=document.getElementById("sort15m");
 const sort1h=document.getElementById("sort1h");
@@ -540,40 +559,6 @@ function normalizeNumericInput(value){
     .replace(/[−–]/g, "-")
     .replace(/٫/g, ".");
 }
-applyFilterButton.addEventListener("click",()=>{
-  if(activeRanges){
-    activeRanges=null;
-    applyFilterButton.textContent="فیلتر";
-    applyFilterButton.classList.remove("is-remove");
-    applyFilterButton.setAttribute("aria-label","فیلتر");
-    renderRows();
-    return;
-  }
-  if(filterTimeframes.size===0){
-    filterMessage.textContent="حداقل یک تایم‌فریم را در بخش فیلتر انتخاب کنید.";
-    return;
-  }
-  const ranges={};
-  for(const timeframe of filterTimeframes){
-    const pair=filterInputs[timeframe];
-    const fromText=normalizeNumericInput(pair.from.value),toText=normalizeNumericInput(pair.to.value);
-    if(fromText===""||toText===""){
-      filterMessage.textContent="لطفاً مقدار «از» و «تا» را برای "+(timeframe==="Min5"?"5m":timeframe==="Min15"?"15m":"1h")+" وارد کنید.";
-      return;
-    }
-    const from=Number(fromText),to=Number(toText);
-    if(!Number.isFinite(from)||!Number.isFinite(to)){
-      filterMessage.textContent="مقادیر فیلتر باید عدد معتبر باشند.";
-      return;
-    }
-    ranges[timeframe]={min:Math.min(from,to),max:Math.max(from,to)};
-  }
-  activeRanges=ranges;
-  applyFilterButton.textContent="حذف فیلتر";
-  applyFilterButton.classList.add("is-remove");
-  applyFilterButton.setAttribute("aria-label","حذف فیلتر");
-  renderRows();
-});
 function render(job){
   const summary=job.summary;
   button.disabled=false;
