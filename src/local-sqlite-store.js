@@ -1,3 +1,5 @@
+import { aggregateRollingFourHourCandles } from "./vwap.js";
+
 const DATABASE_NAME = "harsi_local";
 const DATABASE_VERSION = 1;
 const HISTORY_CANDLES = 2000;
@@ -82,6 +84,16 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_local_harsi_1h_time
     ON mexc_harsi_results_1h(close_time DESC)`,
+  `CREATE TABLE IF NOT EXISTS mexc_futures_ohlcv_4h (
+    symbol TEXT NOT NULL, open_time TEXT NOT NULL, close_time TEXT NOT NULL,
+    open_price REAL NOT NULL, high_price REAL NOT NULL, low_price REAL NOT NULL,
+    close_price REAL NOT NULL, volume REAL, amount REAL,
+    vwap_daily REAL, daily_candle_count INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbol, open_time)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_local_ohlcv_4h_symbol_time
+    ON mexc_futures_ohlcv_4h(symbol, open_time DESC)`,
   `CREATE TABLE IF NOT EXISTS mexc_vwap_values (
     symbol TEXT NOT NULL,
     timeframe TEXT NOT NULL,
@@ -254,6 +266,57 @@ export function createLocalSqliteStore(sqliteConnection) {
       if (operations.length) {
         await serializeWrite(() => sqliteConnection.executeSet(operations, true));
       }
+      if (timeframe !== "Min60") return [];
+      const rollingRows = [];
+      for (const item of items) {
+        const result = await sqliteConnection.query(
+          `SELECT ${CANDLE_COLUMNS.join(", ")}
+           FROM mexc_futures_ohlcv_1h
+           WHERE symbol = ?
+           ORDER BY open_time DESC LIMIT 8`,
+          [item.current.symbol]
+        );
+        const candles = (result.values || []).reverse();
+        const aggregates = aggregateRollingFourHourCandles(candles).map((candle) => ({
+          ...candle,
+          vwap_daily: item.currentVwap?.vwap_daily ?? null,
+          daily_candle_count: item.currentVwap?.daily_candle_count ?? 0
+        }));
+        rollingRows.push(...aggregates);
+        const rollingOperations = [{
+          statement: "DELETE FROM mexc_futures_ohlcv_4h WHERE symbol = ?",
+          values: [item.current.symbol]
+        }, ...aggregates.map((row) => ({
+          statement: `INSERT INTO mexc_futures_ohlcv_4h
+            (symbol, open_time, close_time, open_price, high_price, low_price,
+             close_price, volume, amount, vwap_daily, daily_candle_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          values: [row.symbol, row.open_time, row.close_time, row.open_price,
+            row.high_price, row.low_price, row.close_price, row.volume, row.amount,
+            row.vwap_daily, row.daily_candle_count]
+        }))];
+        await serializeWrite(() => sqliteConnection.executeSet(rollingOperations, true));
+      }
+      return rollingRows;
+    },
+    async getLatestVwap4hResults(limit = 2000) {
+      await initialize();
+      const result = await sqliteConnection.query(
+        `WITH ranked AS (
+          SELECT symbol, open_time, close_time, close_price, vwap_daily,
+                 ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY open_time DESC) AS position
+          FROM mexc_futures_ohlcv_4h
+        )
+        SELECT current.symbol, current.close_time, current.close_price,
+               current.vwap_daily, previous.close_price AS previous_close_price
+        FROM ranked current
+        INNER JOIN ranked previous
+          ON previous.symbol = current.symbol AND previous.position = 2
+        WHERE current.position = 1
+        ORDER BY current.close_time DESC, current.symbol ASC LIMIT ?`,
+        [limit]
+      );
+      return result.values || [];
     },
     async pruneCandleHistory(timeframe = "Min15") {
       await initialize();
