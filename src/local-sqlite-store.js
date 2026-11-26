@@ -285,6 +285,15 @@ export function createLocalSqliteStore(sqliteConnection) {
         `SELECT latest.symbol, latest.open_time, latest.close_time, latest.ha_close,
                 latest.ha_open, latest.ha_high, latest.ha_low, latest.rsi_close,
                 latest.scan_match, latest.calculation_version,
+                current_candle.close_price,
+                (
+                  SELECT previous_candle.close_price
+                  FROM ${tables.candles} previous_candle
+                  WHERE previous_candle.symbol = latest.symbol
+                    AND previous_candle.open_time < latest.open_time
+                  ORDER BY previous_candle.open_time DESC
+                  LIMIT 1
+                ) AS previous_close_price,
                 vwap.vwap_daily
          FROM (
            SELECT symbol, open_time, close_time, ha_close, ha_open, ha_high, ha_low,
@@ -292,6 +301,8 @@ export function createLocalSqliteStore(sqliteConnection) {
                   ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY open_time DESC) AS position
            FROM ${tables.harsi}
          ) latest
+         LEFT JOIN ${tables.candles} current_candle
+           ON current_candle.symbol = latest.symbol AND current_candle.open_time = latest.open_time
          LEFT JOIN mexc_vwap_values vwap
            ON vwap.symbol = latest.symbol AND vwap.timeframe = ? AND vwap.open_time = latest.open_time
          WHERE latest.position = 1
