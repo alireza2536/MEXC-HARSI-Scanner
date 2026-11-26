@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { runLocalHarsiScan } from "../src/local-scanner.js";
+import { aggregateRollingFourHourCandles } from "../src/vwap.js";
 
 const INTERVAL_SECONDS = 900;
 const CURRENT_OPEN = 1_800_000_000;
@@ -218,4 +219,57 @@ test("local scanner supports the 5-minute timeframe and retains daily VWAP calcu
   assert.equal(summary.failedContracts, 0);
   assert.equal(summary.historyCacheHits, 1);
   assert.equal(summary.results[0].timeframe, "Min5");
+});
+
+
+test("rolling 4-hour aggregation builds two overlapping-window source candles", () => {
+  const start = Date.parse("2026-11-26T00:00:00.000Z");
+  const hourly = Array.from({ length: 8 }, (_, index) => ({
+    symbol: "BTC_USDT",
+    open_time: new Date(start + index * 3600000).toISOString(),
+    close_time: new Date(start + (index + 1) * 3600000).toISOString(),
+    open_price: 100 + index,
+    high_price: 105 + index,
+    low_price: 95 + index,
+    close_price: 102 + index,
+    volume: 10 + index,
+    amount: 1000 + index
+  }));
+  const first = aggregateRollingFourHourCandles(hourly);
+  assert.equal(first.length, 2);
+  assert.equal(first[0].open_time, hourly[0].open_time);
+  assert.equal(first[0].close_time, hourly[3].close_time);
+  assert.equal(first[0].open_price, hourly[0].open_price);
+  assert.equal(first[0].high_price, hourly[3].high_price);
+  assert.equal(first[0].low_price, hourly[0].low_price);
+  assert.equal(first[0].close_price, hourly[3].close_price);
+  assert.equal(first[0].volume, 46);
+  assert.equal(first[1].open_time, hourly[4].open_time);
+  assert.equal(first[1].close_time, hourly[7].close_time);
+
+  const shifted = aggregateRollingFourHourCandles(hourly.slice(1).concat([{
+    ...hourly[7],
+    open_time: new Date(start + 8 * 3600000).toISOString(),
+    close_time: new Date(start + 9 * 3600000).toISOString(),
+    open_price: 108, high_price: 113, low_price: 103, close_price: 110
+  }]));
+  assert.equal(shifted.length, 2);
+  assert.equal(shifted[0].open_time, hourly[1].open_time);
+  assert.equal(shifted[1].open_time, hourly[5].open_time);
+});
+
+test("rolling 4-hour aggregation rejects missing or non-consecutive hourly candles", () => {
+  const start = Date.parse("2026-11-26T00:00:00.000Z");
+  const hourly = Array.from({ length: 8 }, (_, index) => ({
+    symbol: "BTC_USDT",
+    open_time: new Date(start + index * 3600000).toISOString(),
+    close_time: new Date(start + (index + 1) * 3600000).toISOString(),
+    open_price: 100, high_price: 101, low_price: 99, close_price: 100,
+    volume: 1, amount: 100
+  }));
+  assert.deepEqual(aggregateRollingFourHourCandles(hourly.slice(0, 7)), []);
+  const gap = hourly.map((candle, index) => index === 4
+    ? { ...candle, open_time: new Date(start + 5 * 3600000).toISOString() }
+    : candle);
+  assert.deepEqual(aggregateRollingFourHourCandles(gap), []);
 });
