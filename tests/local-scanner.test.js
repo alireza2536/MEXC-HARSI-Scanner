@@ -140,6 +140,49 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
   assert.equal(fourHour.vwapDaily, 100);
 });
 
+test("hourly scanner invalidates 4h rows when the current 1h OHLC data is invalid", async () => {
+  const symbol = "BAD_OHLC_USDT";
+  const currentOpen = Math.floor(CURRENT_OPEN / 3600) * 3600;
+  const nowMs = (currentOpen + 60) * 1000;
+  const hourly = (openSeconds, index) => ({
+    symbol,
+    open_time: new Date(openSeconds * 1000).toISOString(),
+    close_time: new Date((openSeconds + 3600) * 1000).toISOString(),
+    open_price: 100 + index, high_price: 102 + index,
+    low_price: 99 + index, close_price: 101 + index,
+    volume: 10, amount: 100
+  });
+  const history = Array.from({ length: 2000 }, (_, index) =>
+    hourly(currentOpen - (2000 - index) * 3600, index)
+  );
+  const current = { ...hourly(currentOpen, 2000), close_price: null };
+  const invalidated = [];
+  const store = {
+    async initialize() {},
+    async pruneExpiredHarsi() {},
+    async getHistoricalCandles() { return history; },
+    async invalidateRollingFourHour(value) { invalidated.push(value); },
+    async persistCurrentBatch() { assert.fail("Invalid OHLC must not be persisted."); },
+    async pruneCandleHistory() {}
+  };
+  const mexc = {
+    async getServerTimeMs() { return nowMs; },
+    async getEligibleUsdtContracts() { return [{ symbol, lastPrice: 1 }]; },
+    async getCandles(requestedSymbol, timeframe, start) {
+      assert.equal(requestedSymbol, symbol);
+      assert.equal(timeframe, "Min60");
+      assert.equal(start, currentOpen);
+      return [current];
+    }
+  };
+
+  const summary = await runLocalHarsiScan({
+    mexc, store, maxPrice: 30, nowMs, timeframe: "Min60"
+  });
+  assert.deepEqual(invalidated, [symbol]);
+  assert.equal(summary.failedContracts, 1);
+});
+
 test("hourly scanner invalidates stale 4h rows when backfilled history is incomplete", async () => {
   const currentOpen = Math.floor(CURRENT_OPEN / 3600) * 3600;
   const nowMs = (currentOpen + 60) * 1000;
