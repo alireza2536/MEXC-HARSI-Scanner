@@ -100,6 +100,10 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
     async persistCurrentBatch(items, timeframe) {
       persistedTimeframe = timeframe;
       assert.equal(items.length, 1);
+      return [
+        { symbol, open_time: "2026-11-25T20:00:00.000Z", close_price: 99, vwap_daily: 100 },
+        { symbol, open_time: "2026-11-26T00:00:00.000Z", close_price: 101, vwap_daily: 100 }
+      ];
     },
     async pruneCandleHistory(timeframe) { assert.equal(timeframe, "Min60"); },
     async upsertCandles() { assert.fail("A complete hourly cache must not be backfilled."); }
@@ -129,6 +133,11 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
   assert.equal(summary.historyCacheHits, 1);
   assert.equal(summary.historyBackfills, 0);
   assert.equal(summary.results[0].timeframe, "Min60");
+  const fourHour = summary.results.find((row) => row.timeframe === "Min240");
+  assert.ok(fourHour);
+  assert.equal(fourHour.previousCandleClose, 99);
+  assert.equal(fourHour.candleClose, 101);
+  assert.equal(fourHour.vwapDaily, 100);
 });
 
 test("local scanner requires explicit maxPrice to preserve active eligibility settings", async () => {
