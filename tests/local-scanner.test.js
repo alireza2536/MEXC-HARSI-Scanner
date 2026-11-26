@@ -140,6 +140,60 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
   assert.equal(fourHour.vwapDaily, 100);
 });
 
+test("hourly scanner invalidates stale 4h rows when backfilled history is incomplete", async () => {
+  const currentOpen = Math.floor(CURRENT_OPEN / 3600) * 3600;
+  const nowMs = (currentOpen + 60) * 1000;
+  const invalidated = [];
+  const store = {
+    async initialize() {},
+    async pruneExpiredHarsi() {},
+    async getHistoricalCandles() { return []; },
+    async invalidateRollingFourHour(symbol) { invalidated.push(symbol); },
+    async pruneCandleHistory() {},
+    async upsertCandles() {}
+  };
+  const mexc = {
+    async getServerTimeMs() { return nowMs; },
+    async getEligibleUsdtContracts() { return [{ symbol: "GAP_USDT", lastPrice: 1 }]; },
+    async getCandles(_symbol, timeframe) {
+      assert.equal(timeframe, "Min60");
+      return [];
+    }
+  };
+
+  const summary = await runLocalHarsiScan({
+    mexc, store, maxPrice: 30, nowMs, timeframe: "Min60"
+  });
+  assert.deepEqual(invalidated, ["GAP_USDT"]);
+  assert.equal(summary.failedContracts, 1);
+  assert.equal(summary.updatedContracts, 0);
+});
+
+test("hourly scanner does not invalidate 4h rows for a temporary MEXC network error", async () => {
+  const currentOpen = Math.floor(CURRENT_OPEN / 3600) * 3600;
+  const nowMs = (currentOpen + 60) * 1000;
+  let invalidationCount = 0;
+  const store = {
+    async initialize() {},
+    async pruneExpiredHarsi() {},
+    async getHistoricalCandles() { return []; },
+    async invalidateRollingFourHour() { invalidationCount += 1; },
+    async pruneCandleHistory() {},
+    async upsertCandles() {}
+  };
+  const mexc = {
+    async getServerTimeMs() { return nowMs; },
+    async getEligibleUsdtContracts() { return [{ symbol: "NET_USDT", lastPrice: 1 }]; },
+    async getCandles() { throw new Error("temporary network failure"); }
+  };
+
+  const summary = await runLocalHarsiScan({
+    mexc, store, maxPrice: 30, nowMs, timeframe: "Min60"
+  });
+  assert.equal(invalidationCount, 0);
+  assert.equal(summary.failedContracts, 1);
+});
+
 test("local scanner requires explicit maxPrice to preserve active eligibility settings", async () => {
   await assert.rejects(
     runLocalHarsiScan({ mexc: {}, store: {} }),
