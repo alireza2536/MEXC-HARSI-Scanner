@@ -374,4 +374,8 @@ test("rolling 4-hour aggregation rejects missing or non-consecutive hourly candl
     ? { ...candle, open_time: new Date(start + 5 * 3600000).toISOString() }
     : candle);
   assert.deepEqual(aggregateRollingFourHourCandles(gap), []);
+  const missingPrice = hourly.map((candle, index) => index === 6
+    ? { ...candle, close_price: null }
+    : candle);
+  assert.deepEqual(aggregateRollingFourHourCandles(missingPrice), []);
 });
