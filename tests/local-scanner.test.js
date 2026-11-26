@@ -169,6 +169,45 @@ test("hourly scanner invalidates stale 4h rows when backfilled history is incomp
   assert.equal(summary.updatedContracts, 0);
 });
 
+test("hourly scanner preserves 4h rows when older history is short but the latest eight candles are valid", async () => {
+  const currentOpen = Math.floor(CURRENT_OPEN / 3600) * 3600;
+  const nowMs = (currentOpen + 60) * 1000;
+  const invalidated = [];
+  const hourly = (openSeconds, index) => ({
+    symbol: "OLDER_GAP_USDT",
+    open_time: new Date(openSeconds * 1000).toISOString(),
+    close_time: new Date((openSeconds + 3600) * 1000).toISOString(),
+    open_price: 100 + index, high_price: 102 + index,
+    low_price: 99 + index, close_price: 101 + index,
+    volume: 10, amount: 100
+  });
+  const partialHistory = Array.from({ length: 1999 }, (_, index) =>
+    hourly(currentOpen - (1999 - index) * 3600, index)
+  );
+  const store = {
+    async initialize() {},
+    async pruneExpiredHarsi() {},
+    async getHistoricalCandles() { return []; },
+    async invalidateRollingFourHour(symbol) { invalidated.push(symbol); },
+    async pruneCandleHistory() {},
+    async upsertCandles() {}
+  };
+  const mexc = {
+    async getServerTimeMs() { return nowMs; },
+    async getEligibleUsdtContracts() { return [{ symbol: "OLDER_GAP_USDT", lastPrice: 1 }]; },
+    async getCandles(_symbol, timeframe) {
+      assert.equal(timeframe, "Min60");
+      return partialHistory;
+    }
+  };
+
+  const summary = await runLocalHarsiScan({
+    mexc, store, maxPrice: 30, nowMs, timeframe: "Min60"
+  });
+  assert.deepEqual(invalidated, []);
+  assert.equal(summary.failedContracts, 1);
+});
+
 test("hourly scanner does not invalidate 4h rows for a temporary MEXC network error", async () => {
   const currentOpen = Math.floor(CURRENT_OPEN / 3600) * 3600;
   const nowMs = (currentOpen + 60) * 1000;
