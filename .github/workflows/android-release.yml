@@ -1,0 +1,112 @@
+name: Android Signed APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/cross-down-vwap
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install JavaScript dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Run automated tests
+        run: npm test
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Generate Android project
+        run: npx cap add android
+
+      - name: Install native background scan service
+        run: node scripts/prepare-android-background.js
+
+      - name: Configure stable app signing and increasing version
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64" || (echo "Missing GitHub Actions secret: ANDROID_KEYSTORE_BASE64" && exit 1)
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || (echo "Missing GitHub Actions secret: ANDROID_KEYSTORE_PASSWORD" && exit 1)
+          test -n "$ANDROID_KEY_ALIAS" || (echo "Missing GitHub Actions secret: ANDROID_KEY_ALIAS" && exit 1)
+          test -n "$ANDROID_KEY_PASSWORD" || (echo "Missing GitHub Actions secret: ANDROID_KEY_PASSWORD" && exit 1)
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/harsi-release.keystore
+          export ANDROID_KEYSTORE_FILE="$PWD/android/app/harsi-release.keystore"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const file = 'android/app/build.gradle';
+          let gradle = fs.readFileSync(file, 'utf8');
+          const buildNumber = Number(process.env.BUILD_NUMBER);
+          if (!Number.isSafeInteger(buildNumber) || buildNumber < 1) throw new Error('Invalid Android versionCode');
+          if (!/versionCode\\s+\\d+/.test(gradle)) throw new Error('Could not locate generated Android versionCode');
+          gradle = gradle.replace(/versionCode\\s+\\d+/, `versionCode ${buildNumber}`);
+          const signing = `
+              signingConfigs {
+                  release {
+                      storeFile file(System.getenv("ANDROID_KEYSTORE_FILE"))
+                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+          `;
+          if (!gradle.includes('signingConfigs {')) {
+            gradle = gradle.replace(/    buildTypes\\s*\\{/, signing + '\\n    buildTypes {');
+          }
+          if (!gradle.includes('signingConfig signingConfigs.release')) {
+            const releaseBlock = /(buildTypes\\s*\\{\\s*release\\s*\\{)/;
+            if (!releaseBlock.test(gradle)) throw new Error('Could not locate Android buildTypes.release block');
+            gradle = gradle.replace(releaseBlock, '$1\\n            signingConfig signingConfigs.release');
+          }
+          fs.writeFileSync(file, gradle);
+          NODE
+
+      - name: Sync Capacitor plugins and web assets
+        run: npx cap sync android
+
+      - name: Build signed release APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ github.workspace }}/android/app/harsi-release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f android/app/harsi-release.keystore
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: harsi-android-release
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
