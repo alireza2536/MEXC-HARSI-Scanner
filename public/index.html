@@ -40,8 +40,8 @@
     .vwap-filter-title{margin:0 0 10px;text-align:center;font-size:14px;font-weight:700}
     .vwap-filter-row{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:center;margin:8px 0}
     .vwap-filter-timeframe{width:52px;min-height:40px;display:flex;align-items:center;justify-content:center;background:#172438;border:1px solid #354862;border-radius:9px;font-size:14px;font-weight:700;direction:ltr}
-    .vwap-filter-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-    .vwap-filter-options button{min-height:40px;padding:7px 3px;border:1px solid #354862;border-radius:9px;background:#172438;color:#e5edf8;font-size:12px;font-weight:700;white-space:nowrap}
+    .vwap-filter-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+    .vwap-filter-options button{min-height:40px;padding:7px 2px;border:1px solid #354862;border-radius:9px;background:#172438;color:#e5edf8;font-size:11px;font-weight:700;white-space:nowrap}
     .vwap-filter-options button.active{background:#1D4ED8;border-color:#1D4ED8;color:#fff}
     .vwap-filter-options button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
     .ha-filter-fields{display:grid;grid-template-columns:1fr;gap:12px}
@@ -110,6 +110,7 @@
           <button type="button" data-vwap-condition="all" class="active" aria-pressed="true">همه</button>
           <button type="button" data-vwap-condition="gte" aria-pressed="false">P ≥ VW</button>
           <button type="button" data-vwap-condition="lt" aria-pressed="false">VW &gt; P</button>
+          <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
         </div>
       </div>
       <div class="vwap-filter-row" data-vwap-timeframe="Min15">
@@ -118,6 +119,7 @@
           <button type="button" data-vwap-condition="all" class="active" aria-pressed="true">همه</button>
           <button type="button" data-vwap-condition="gte" aria-pressed="false">P ≥ VW</button>
           <button type="button" data-vwap-condition="lt" aria-pressed="false">VW &gt; P</button>
+          <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
         </div>
       </div>
       <div class="vwap-filter-row" data-vwap-timeframe="Min60">
@@ -126,6 +128,7 @@
           <button type="button" data-vwap-condition="all" class="active" aria-pressed="true">همه</button>
           <button type="button" data-vwap-condition="gte" aria-pressed="false">P ≥ VW</button>
           <button type="button" data-vwap-condition="lt" aria-pressed="false">VW &gt; P</button>
+          <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
         </div>
       </div>
     </div>
@@ -191,9 +194,11 @@ function vwapConditionMatches(item){
   return ["Min5","Min15","Min60"].every(timeframe=>{
     const condition=vwapConditions[timeframe];
     if(condition==="all") return true;
-    const price=item["price"+timeframe],vwap=item["vwap"+timeframe];
+    const price=item["price"+timeframe],previousPrice=item["previousPrice"+timeframe],vwap=item["vwap"+timeframe];
     if(price===null||price===undefined||vwap===null||vwap===undefined) return false;
-    return condition==="gte"?price>=vwap:price<vwap;
+    if(condition==="gte") return price>=vwap;
+    if(condition==="lt") return price<vwap;
+    return condition==="crossUp"&&previousPrice!==null&&previousPrice!==undefined&&Number.isFinite(previousPrice)&&previousPrice<=vwap&&price>vwap;
   });
 }
 for(const row of document.querySelectorAll(".vwap-filter-row")){
@@ -316,6 +321,7 @@ function groupedResults(){
     if(!bySymbol.has(symbol)) bySymbol.set(symbol,{
       symbol,Min5:null,Min15:null,Min60:null,vwapDaily:null,
       priceMin5:null,priceMin15:null,priceMin60:null,
+      previousPriceMin5:null,previousPriceMin15:null,previousPriceMin60:null,
       vwapMin5:null,vwapMin15:null,vwapMin60:null
     });
     const row=bySymbol.get(symbol);
@@ -329,6 +335,8 @@ function groupedResults(){
     const price=Number(priceSource);
     if(priceSource!==null&&priceSource!==undefined&&Number.isFinite(price)){
       row["price"+timeframe]=price;
+      const previousPrice=Number(item.previousCandleClose);
+      if(item.previousCandleClose!==null&&item.previousCandleClose!==undefined&&Number.isFinite(previousPrice)) row["previousPrice"+timeframe]=previousPrice;
     }
     const daily=Number(item.vwapDaily);
     if(item.vwapDaily!==null&&item.vwapDaily!==undefined&&Number.isFinite(daily)){
