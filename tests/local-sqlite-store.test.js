@@ -68,6 +68,70 @@ test("local SQLite store initializes schema and commits candle/HA rows atomicall
   assert.equal(LOCAL_STORE_LIMITS.resultRetentionDays, 7);
 });
 
+test("rolling 4h rows are removed for an invalid 8-candle window and rebuilt from the latest window", async () => {
+  const db = fakeConnection();
+  let latestWindow = [];
+  const originalQuery = db.query.bind(db);
+  db.query = async (statement, values) => {
+    if (statement.includes("FROM mexc_futures_ohlcv_1h")) {
+      return { values: [...latestWindow].reverse() };
+    }
+    return originalQuery(statement, values);
+  };
+  const store = createLocalSqliteStore(db);
+  const makeHourly = (start, count = 8) => Array.from({ length: count }, (_, index) => ({
+    symbol: "BTC_USDT",
+    open_time: new Date(start + index * 3600000).toISOString(),
+    close_time: new Date(start + (index + 1) * 3600000).toISOString(),
+    open_price: 100 + index, high_price: 105 + index, low_price: 95 + index,
+    close_price: 102 + index, volume: 10, amount: 1000
+  }));
+  const firstStart = Date.parse("2026-11-24T00:00:00.000Z");
+  latestWindow = makeHourly(firstStart);
+  latestWindow[4] = { ...latestWindow[4], open_time: new Date(firstStart + 5 * 3600000).toISOString() };
+  const item = {
+    current: { ...makeHourly(firstStart)[7] },
+    currentHarsi: {
+      symbol: "BTC_USDT", open_time: new Date(firstStart + 7 * 3600000).toISOString(),
+      close_time: new Date(firstStart + 8 * 3600000).toISOString(),
+      rsi_open: 50, rsi_high: 55, rsi_low: 45, rsi_close: 52,
+      ha_open: 50, ha_high: 55, ha_low: 45, ha_close: 52,
+      scan_match: null, calculation_version: "test"
+    },
+    currentVwap: { vwap_daily: 103, daily_candle_count: 8 }
+  };
+
+  const invalidRows = await store.persistCurrentBatch([item], "Min60");
+  assert.deepEqual(invalidRows, []);
+  const invalidationSet = db.sets.at(-1).set;
+  assert.equal(invalidationSet.length, 1);
+  assert.match(invalidationSet[0].statement, /DELETE FROM mexc_futures_ohlcv_4h/);
+
+  // Simulate a two-day pause: the database query now returns the newest eight
+  // hourly candles, and the rolling 4h pair is rebuilt from this later window.
+  const laterStart = Date.parse("2026-11-26T00:00:00.000Z");
+  latestWindow = makeHourly(laterStart);
+  item.current = { ...latestWindow[7] };
+  item.currentHarsi.open_time = latestWindow[7].open_time;
+  item.currentHarsi.close_time = latestWindow[7].close_time;
+  const rebuiltRows = await store.persistCurrentBatch([item], "Min60");
+  assert.equal(rebuiltRows.length, 2);
+  assert.equal(rebuiltRows[0].open_time, latestWindow[0].open_time);
+  assert.equal(rebuiltRows[1].open_time, latestWindow[4].open_time);
+  assert.ok(Date.parse(rebuiltRows[1].open_time) > firstStart + 86400000);
+});
+
+test("rolling 4h invalidation deletes only the selected symbol in a transaction", async () => {
+  const db = fakeConnection();
+  const store = createLocalSqliteStore(db);
+  await store.invalidateRollingFourHour("BTC_USDT");
+  const operation = db.sets.at(-1);
+  assert.equal(operation.transaction, true);
+  assert.equal(operation.set.length, 1);
+  assert.deepEqual(operation.set[0].values, ["BTC_USDT"]);
+  assert.match(operation.set[0].statement, /DELETE FROM mexc_futures_ohlcv_4h/);
+});
+
 test("latest HA query qualifies sort columns after joining VWAP", async () => {
   const db = fakeConnection();
   const store = createLocalSqliteStore(db);
