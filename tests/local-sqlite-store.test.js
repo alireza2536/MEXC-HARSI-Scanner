@@ -119,7 +119,7 @@ test("concurrent timeframe writes are serialized and initialization runs once", 
 
   const store = createLocalSqliteStore(db);
   await Promise.all([store.initialize(), store.initialize(), store.initialize()]);
-  assert.equal(db.executed.length, 14);
+  assert.equal(db.executed.length, 16);
 
   const item = {
     current: {
