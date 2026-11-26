@@ -141,6 +141,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
             symbol: item.contract.symbol,
             lastPrice: item.contract.lastPrice,
             candleClose: item.current.close_price,
+            previousCandleClose: item.previous.close_price,
             haClose: item.currentHarsi.ha_close,
             vwapDaily: item.currentVwap.vwap_daily,
             candleOpenTime: item.current.open_time
@@ -189,7 +190,9 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
           serverNowMs, nowSeconds, cache: dailyVwapCache
         });
 
-        pending.push({ contract, current, currentHarsi, currentVwap });
+        const previous = history.candles.at(-1);
+        if (!previous) throw new Error(`Previous ${timeframe} candle is unavailable for VWAP cross detection.`);
+        pending.push({ contract, current, previous, currentHarsi, currentVwap });
         if (pending.length >= PERSISTENCE_BATCH_SIZE) {
           const batch = pending.splice(0, PERSISTENCE_BATCH_SIZE);
           await queuePersistence(batch);
