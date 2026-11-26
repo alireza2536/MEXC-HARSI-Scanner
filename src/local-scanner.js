@@ -39,6 +39,15 @@ function currentCandleFrom(candles, currentOpen) {
   return candles.find((candle) => Date.parse(candle.open_time) === currentOpen * 1000);
 }
 
+function hasValidOhlc(candle) {
+  return ["open_price", "high_price", "low_price", "close_price"].every((field) => {
+    const value = candle?.[field];
+    return value !== null && value !== undefined
+      && !(typeof value === "string" && value.trim() === "")
+      && Number.isFinite(Number(value));
+  });
+}
+
 function log(event, details = {}) {
   console.info(JSON.stringify({ at: new Date().toISOString(), event, ...details }));
 }
@@ -212,6 +221,11 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
         throwIfAborted();
         const current = currentCandleFrom(currentResponse, currentOpen);
         if (!current) throw new Error(`MEXC did not return the currently forming ${timeframe} candle.`);
+        if (timeframe === "Min60" && !hasValidOhlc(current)) {
+          const error = new Error("The current 1-hour candle has incomplete OHLC values.");
+          error.code = "INVALID_ROLLING_4H_WINDOW";
+          throw error;
+        }
 
         const candlesForIndicators = [...history.candles, current];
         const currentHarsi = calculateHarsi(candlesForIndicators)
@@ -234,8 +248,10 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
       } catch (error) {
         if (signal?.aborted || error.name === "AbortError") return;
         if (timeframe === "Min60"
-            && error?.code === "INCOMPLETE_CANDLE_HISTORY"
-            && error.rollingWindowInvalid
+            && (
+              (error?.code === "INCOMPLETE_CANDLE_HISTORY" && error.rollingWindowInvalid)
+              || error?.code === "INVALID_ROLLING_4H_WINDOW"
+            )
             && typeof store.invalidateRollingFourHour === "function") {
           try {
             await store.invalidateRollingFourHour(contract.symbol);
