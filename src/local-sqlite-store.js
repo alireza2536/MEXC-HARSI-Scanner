@@ -299,6 +299,16 @@ export function createLocalSqliteStore(sqliteConnection) {
       }
       return rollingRows;
     },
+    async invalidateRollingFourHour(symbol) {
+      if (typeof symbol !== "string" || !symbol.trim()) {
+        throw new TypeError("A symbol is required to invalidate rolling 4-hour candles.");
+      }
+      await initialize();
+      await serializeWrite(() => sqliteConnection.executeSet([{
+        statement: "DELETE FROM mexc_futures_ohlcv_4h WHERE symbol = ?",
+        values: [symbol]
+      }], true));
+    },
     async getLatestVwap4hResults(limit = 2000) {
       await initialize();
       const result = await sqliteConnection.query(
