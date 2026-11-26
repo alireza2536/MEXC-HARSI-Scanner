@@ -359,9 +359,9 @@ function groupedResults(){
     if(!symbol||!["Min5","Min15","Min60","Min240"].includes(item.timeframe)) continue;
     if(!bySymbol.has(symbol)) bySymbol.set(symbol,{
       symbol,Min5:null,Min15:null,Min60:null,vwapDaily:null,
-      priceMin5:null,priceMin15:null,priceMin60:null,
-      previousPriceMin5:null,previousPriceMin15:null,previousPriceMin60:null,
-      vwapMin5:null,vwapMin15:null,vwapMin60:null
+      priceMin5:null,priceMin15:null,priceMin60:null,priceMin240:null,
+      previousPriceMin5:null,previousPriceMin15:null,previousPriceMin60:null,previousPriceMin240:null,
+      vwapMin5:null,vwapMin15:null,vwapMin60:null,vwapMin240:null
     });
     const row=bySymbol.get(symbol);
     const timeframe=item.timeframe;
