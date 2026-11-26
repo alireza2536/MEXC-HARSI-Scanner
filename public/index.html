@@ -323,13 +323,19 @@ for(const pair of Object.values(filterInputs)) for(const input of [pair.from,pai
   input.addEventListener("input",()=>{
     useEnglishDigits(input);
     input.style.textAlign="center";
-    if(filterTimeframes.size&&refreshActiveRanges()) renderRows();
+    if(filterTimeframes.size){
+      refreshActiveRanges();
+      renderRows();
+    }
   });
   input.addEventListener("focus",()=>{
     input.value="";
     input.style.textAlign="center";
     // Focusing clears the old value, so remove its bound immediately from the active filter.
-    if(filterTimeframes.size&&refreshActiveRanges()) renderRows();
+    if(filterTimeframes.size){
+      refreshActiveRanges();
+      renderRows();
+    }
   });
   useEnglishDigits(input);
 }
