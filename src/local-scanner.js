@@ -2,6 +2,26 @@ import { calculateHarsi } from "./harsi.js";
 import { hasCompleteCandleWindow } from "./candle-history-cache.js";
 import { calculateDailyVwap } from "./vwap.js";
 
+export async function getSharedDailyVwap({ mexc, symbol, timeframe, candles, serverNowMs, nowSeconds, cache = new Map() }) {
+  const utcDayStart = new Date(serverNowMs);
+  utcDayStart.setUTCHours(0, 0, 0, 0);
+  const cacheKey = `${symbol}|${utcDayStart.toISOString().slice(0, 10)}`;
+  if (timeframe === "Min15") {
+    const value = calculateDailyVwap(candles, serverNowMs);
+    cache.set(cacheKey, Promise.resolve(value));
+    return value;
+  }
+  if (!cache.has(cacheKey)) {
+    const request = (async () => {
+      const dailyCandles = await mexc.getCandles(symbol, "Min15", Math.floor(utcDayStart.getTime() / 1000), nowSeconds);
+      return calculateDailyVwap(dailyCandles, serverNowMs);
+    })();
+    cache.set(cacheKey, request);
+    request.catch(() => { if (cache.get(cacheKey) === request) cache.delete(cacheKey); });
+  }
+  return cache.get(cacheKey);
+}
+
 const TIMEFRAME_SECONDS = Object.freeze({ Min5: 300, Min15: 900, Min60: 3600 });
 const HISTORY_CANDLES = 2000;
 const PERSISTENCE_BATCH_SIZE = 10;
@@ -52,7 +72,7 @@ async function getHistory(store, mexc, symbol, currentOpen, signal, timeframe, c
  * Local scanner. The Android caller owns scan lifecycle and keeps a native
  * foreground service active for the duration of each user-started scan.
  */
-export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal, timeframe = "Min15", workerCount = 5 } = {}) {
+export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal, timeframe = "Min15", workerCount = 5, dailyVwapCache = new Map() } = {}) {
   if (!mexc || !store) throw new TypeError("MEXC client and local store are required.");
   if (!Number.isFinite(maxPrice) || maxPrice <= 0) {
     throw new TypeError("The current scanner maxPrice setting must be provided.");
@@ -163,9 +183,11 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
           .find((row) => row.open_time === current.open_time);
         if (!currentHarsi) throw new Error("HARSI value is not ready for the current candle.");
 
-        // Calculate the UTC-session VWAP from this scan timeframe's own candles.
-        // This keeps the daily anchor while making 5m, 15m and 1h values timeframe-specific.
-        const currentVwap = calculateDailyVwap(candlesForIndicators, serverNowMs);
+        // All timeframes compare their current candle close against the same 15m-based daily VWAP.
+        const currentVwap = await getSharedDailyVwap({
+          mexc, symbol: contract.symbol, timeframe, candles: candlesForIndicators,
+          serverNowMs, nowSeconds, cache: dailyVwapCache
+        });
 
         pending.push({ contract, current, currentHarsi, currentVwap });
         if (pending.length >= PERSISTENCE_BATCH_SIZE) {
