@@ -108,6 +108,12 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
     async getEligibleUsdtContracts() { return [{ symbol, lastPrice: 2 }]; },
     async getCandles(requestedSymbol, timeframe, start, end) {
       assert.equal(requestedSymbol, symbol);
+      if (timeframe === "Min15") {
+        const utcDayStart = Math.floor(currentOpen / 86400) * 86400;
+        assert.equal(start, utcDayStart);
+        assert.equal(end, Math.floor(nowMs / 1000));
+        return [hourlyCandle(utcDayStart, 0)];
+      }
       assert.equal(start, currentOpen);
       assert.equal(end, Math.floor(nowMs / 1000));
       assert.equal(timeframe, "Min60");
@@ -195,6 +201,12 @@ test("local scanner supports the 5-minute timeframe and retains daily VWAP calcu
     async getEligibleUsdtContracts() { return [{ symbol, lastPrice: 2 }]; },
     async getCandles(requestedSymbol, timeframe, start, end) {
       assert.equal(requestedSymbol, symbol);
+      if (timeframe === "Min15") {
+        const utcDayStart = Math.floor(currentOpen / 86400) * 86400;
+        assert.equal(start, utcDayStart);
+        assert.equal(end, Math.floor(nowMs / 1000));
+        return [makeCandle(utcDayStart, 0, 900)];
+      }
       assert.equal(start, currentOpen);
       assert.equal(end, Math.floor(nowMs / 1000));
       assert.equal(timeframe, "Min5");
