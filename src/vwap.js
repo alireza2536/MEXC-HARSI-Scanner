@@ -44,6 +44,15 @@ export function aggregateRollingFourHourCandles(candles) {
     if (timestamps[index] - timestamps[index - 1] !== 3600000) return [];
   }
   const aggregate = (window) => {
+    const hasRequiredPrices = window.every((candle) =>
+      ["open_price", "high_price", "low_price", "close_price"].every((field) => {
+        const value = candle?.[field];
+        return value !== null && value !== undefined
+          && !(typeof value === "string" && value.trim() === "")
+          && Number.isFinite(Number(value));
+      })
+    );
+    if (!hasRequiredPrices) return null;
     const numeric = window.map((candle) => ({
       open: Number(candle.open_price),
       high: Number(candle.high_price),
