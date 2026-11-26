@@ -220,23 +220,26 @@ function refreshActiveRanges(){
   for(const timeframe of filterTimeframes){
     const pair=filterInputs[timeframe];
     const fromText=normalizeNumericInput(pair.from.value),toText=normalizeNumericInput(pair.to.value);
-    if(fromText===""||toText===""){
-      filterMessage.textContent="لطفاً مقدار «از» و «تا» را برای "+(timeframe==="Min5"?"5m":timeframe==="Min15"?"15m":"1h")+" وارد کنید.";
-      activeRanges=null;
-      return false;
-    }
-    const from=Number(fromText),to=Number(toText);
-    if(!Number.isFinite(from)||!Number.isFinite(to)){
+    // An empty bound is disabled; if both are empty, this timeframe adds no HARSI condition.
+    if(fromText===""&&toText==="") continue;
+    const from=fromText===""?null:Number(fromText);
+    const to=toText===""?null:Number(toText);
+    if((from!==null&&!Number.isFinite(from))||(to!==null&&!Number.isFinite(to))){
       filterMessage.textContent="مقادیر فیلتر باید عدد معتبر باشند.";
       activeRanges=null;
       return false;
     }
-    ranges[timeframe]={min:Math.min(from,to),max:Math.max(from,to)};
+    ranges[timeframe]=from!==null&&to!==null
+      ? {min:Math.min(from,to),max:Math.max(from,to)}
+      : {min:from,max:to};
   }
-  activeRanges=Object.keys(ranges).length?ranges:null;
-  filterMessage.textContent=filterTimeframes.size
-    ? "فیلتر HARSI برای تایم‌فریم‌های روشن فعال است."
-    : "هیچ تایم‌فریمی انتخاب نشده؛ همه مقادیر نمایش داده می‌شوند.";
+  // Keep an empty object when timeframe filters are selected but all their bounds are blank.
+  activeRanges=filterTimeframes.size?ranges:null;
+  filterMessage.textContent=!filterTimeframes.size
+    ? "هیچ تایم‌فریمی انتخاب نشده؛ همه مقادیر نمایش داده می‌شوند."
+    : Object.keys(ranges).length
+      ? "فیلتر HARSI برای حدهای واردشده فعال است."
+      : "همه ورودی‌های HARSI خالی‌اند؛ فیلتر HARSI غیرفعال است.";
   return true;
 }
 function toggleTimeframe(value){
@@ -320,23 +323,14 @@ for(const pair of Object.values(filterInputs)) for(const input of [pair.from,pai
   input.addEventListener("input",()=>{
     useEnglishDigits(input);
     input.style.textAlign="center";
-    // Re-evaluate HARSI ranges as soon as every enabled timeframe has two valid values.
-    if(filterTimeframes.size){
-      const ready=[...filterTimeframes].every(timeframe=>{
-        const rangeInputs=filterInputs[timeframe];
-        const from=normalizeNumericInput(rangeInputs.from.value);
-        const to=normalizeNumericInput(rangeInputs.to.value);
-        return from!==""&&to!==""&&Number.isFinite(Number(from))&&Number.isFinite(Number(to));
-      });
-      if(ready){
-        refreshActiveRanges();
-        renderRows();
-      }else{
-        filterMessage.textContent="برای اعمال بازه HARSI، مقدار «از» و «تا» را کامل کنید.";
-      }
-    }
+    if(filterTimeframes.size&&refreshActiveRanges()) renderRows();
   });
-  input.addEventListener("focus",()=>{input.value="";input.style.textAlign="center";});
+  input.addEventListener("focus",()=>{
+    input.value="";
+    input.style.textAlign="center";
+    // Focusing clears the old value, so remove its bound immediately from the active filter.
+    if(filterTimeframes.size&&refreshActiveRanges()) renderRows();
+  });
   useEnglishDigits(input);
 }
 function updateFilterRows(){
@@ -415,7 +409,7 @@ function renderRows(){
   let results=activeRanges
     ? all.filter(item=>visibleTimeframes.every(timeframe=>{
         const range=activeRanges[timeframe],value=item[timeframe];
-        return range&&value!==null&&value>=range.min&&value<=range.max;
+        return range&&value!==null&&(range.min===null||value>=range.min)&&(range.max===null||value<=range.max);
       }))
     : all;
   results=results.filter(vwapConditionMatches);
@@ -468,7 +462,7 @@ function getExportRows(filteredOnly){
   let results=filteredOnly&&activeRanges
     ? all.filter(item=>visibleTimeframes.every(timeframe=>{
         const range=activeRanges[timeframe],value=item[timeframe];
-        return range&&value!==null&&value>=range.min&&value<=range.max;
+        return range&&value!==null&&(range.min===null||value>=range.min)&&(range.max===null||value<=range.max);
       }))
     : all;
   if(filteredOnly) results=results.filter(vwapConditionMatches);
