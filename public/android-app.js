@@ -138,6 +138,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
 
     try {
       const requestLimiter = createMexcRequestLimiter();
+      const dailyVwapCache = new Map();
       const progressByTimeframe = new Map();
       const outcomes = await Promise.allSettled(timeframes.map(async (timeframe) => {
         if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
@@ -148,6 +149,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
           signal: controller.signal,
           timeframe,
           workerCount: timeframes.length > 1 ? 3 : 5,
+          dailyVwapCache,
           onProgress: (progress) => {
             if (controller?.signal.aborted) return;
             progressByTimeframe.set(timeframe, progress);
