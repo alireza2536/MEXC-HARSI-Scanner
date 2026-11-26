@@ -88,18 +88,13 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
     hourlyCandle(currentOpen - (2000 - index) * intervalSeconds, index)
   );
   const current = hourlyCandle(currentOpen, 2000);
-  const dailyHistory = Array.from({ length: 2000 }, (_, index) =>
-    candle(symbol, currentOpen - (2000 - index) * INTERVAL_SECONDS, index)
-  );
-  const dailyCurrent = candle(symbol, currentOpen, 2000);
   let persistedTimeframe = null;
   const store = {
     async initialize() {},
     async pruneExpiredHarsi() {},
     async getHistoricalCandles(_symbol, _before, _limit, timeframe) {
-      if (timeframe === "Min60") return history;
-      if (timeframe === "Min15") return dailyHistory;
-      assert.fail("Unexpected history timeframe: " + timeframe);
+      assert.equal(timeframe, "Min60");
+      return history;
     },
     async persistCurrentBatch(items, timeframe) {
       persistedTimeframe = timeframe;
@@ -115,9 +110,8 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
       assert.equal(requestedSymbol, symbol);
       assert.equal(start, currentOpen);
       assert.equal(end, Math.floor(nowMs / 1000));
-      if (timeframe === "Min60") return [current];
-      if (timeframe === "Min15") return [dailyCurrent];
-      assert.fail("Unexpected candle timeframe: " + timeframe);
+      assert.equal(timeframe, "Min60");
+      return [current];
     }
   };
 
@@ -125,7 +119,7 @@ test("local scanner supports the 1-hour timeframe with hourly candle spacing", a
   assert.equal(persistedTimeframe, "Min60");
   assert.equal(summary.updatedContracts, 1);
   assert.equal(summary.failedContracts, 0);
-  assert.equal(summary.historyCacheHits, 2);
+  assert.equal(summary.historyCacheHits, 1);
   assert.equal(summary.historyBackfills, 0);
   assert.equal(summary.results[0].timeframe, "Min60");
 });
@@ -182,16 +176,11 @@ test("local scanner supports the 5-minute timeframe and retains daily VWAP calcu
     makeCandle(currentOpen - (2000 - index) * 300, index, 300)
   );
   const current5m = makeCandle(currentOpen, 2000, 300);
-  const dailyHistory = Array.from({ length: 2000 }, (_, index) =>
-    makeCandle(currentOpen - (2000 - index) * 900, index, 900)
-  );
-  const dailyCurrent = makeCandle(currentOpen, 2000, 900);
   const store = {
     async initialize() {}, async pruneExpiredHarsi() {},
     async getHistoricalCandles(_symbol, _before, _limit, timeframe) {
-      if (timeframe === "Min5") return history5m;
-      if (timeframe === "Min15") return dailyHistory;
-      assert.fail("Unexpected history timeframe: " + timeframe);
+      assert.equal(timeframe, "Min5");
+      return history5m;
     },
     async persistCurrentBatch(items, timeframe) {
       assert.equal(timeframe, "Min5");
@@ -208,14 +197,13 @@ test("local scanner supports the 5-minute timeframe and retains daily VWAP calcu
       assert.equal(requestedSymbol, symbol);
       assert.equal(start, currentOpen);
       assert.equal(end, Math.floor(nowMs / 1000));
-      if (timeframe === "Min5") return [current5m];
-      if (timeframe === "Min15") return [dailyCurrent];
-      assert.fail("Unexpected candle timeframe: " + timeframe);
+      assert.equal(timeframe, "Min5");
+      return [current5m];
     }
   };
   const summary = await runLocalHarsiScan({ mexc, store, maxPrice: 30, nowMs, timeframe: "Min5" });
   assert.equal(summary.updatedContracts, 1);
   assert.equal(summary.failedContracts, 0);
-  assert.equal(summary.historyCacheHits, 2);
+  assert.equal(summary.historyCacheHits, 1);
   assert.equal(summary.results[0].timeframe, "Min5");
 });
