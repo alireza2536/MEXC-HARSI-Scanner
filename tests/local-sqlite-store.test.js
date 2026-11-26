@@ -74,6 +74,10 @@ test("latest HA query qualifies sort columns after joining VWAP", async () => {
   await store.getLatestHarsiResults(1000, "Min5");
   const sql = db.queries.at(-1).statement;
   assert.match(sql, /mexc_harsi_results_5m/);
+  assert.match(sql, /LEFT JOIN mexc_futures_ohlcv_5m current_candle/);
+  assert.match(sql, /current_candle\.close_price/);
+  assert.match(sql, /AS previous_close_price/);
+  assert.match(sql, /previous_candle\.open_time < latest\.open_time/);
   assert.match(sql, /ORDER BY latest\.close_time DESC, latest\.symbol ASC LIMIT \?/);
 });
 
