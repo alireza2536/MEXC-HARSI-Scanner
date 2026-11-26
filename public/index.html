@@ -332,8 +332,9 @@ function groupedResults(){
     }
     const daily=Number(item.vwapDaily);
     if(item.vwapDaily!==null&&item.vwapDaily!==undefined&&Number.isFinite(daily)){
-      row.vwapDaily=daily;
       row["vwap"+timeframe]=daily;
+      // The single VW column remains the 15m-based daily VWAP display.
+      if(timeframe==="Min15") row.vwapDaily=daily;
     }
   }
   return [...bySymbol.values()];
