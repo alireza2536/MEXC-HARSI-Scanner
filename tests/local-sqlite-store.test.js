@@ -227,7 +227,7 @@ test("local SQLite store persists exactly two rolling 4-hour rows after hourly u
   }));
   const originalQuery = db.query.bind(db);
   db.query = async (statement, values) => {
-    if (statement.includes("FROM mexc_futures_ohlcv_1h")) return { values: hourly };
+    if (statement.includes("FROM mexc_futures_ohlcv_1h")) return { values: [...hourly].reverse() };
     return originalQuery(statement, values);
   };
   const store = createLocalSqliteStore(db);
