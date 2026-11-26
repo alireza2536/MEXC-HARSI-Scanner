@@ -150,16 +150,14 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
             const pair = rollingFourHourRows
               .filter((row) => row.symbol === item.contract.symbol)
               .sort((a, b) => Date.parse(a.open_time) - Date.parse(b.open_time));
-            if (pair.length === 2) {
-              results.push({
-                timeframe: "Min240",
-                symbol: item.contract.symbol,
-                candleClose: pair[1].close_price,
-                previousCandleClose: pair[0].close_price,
-                vwapDaily: pair[1].vwap_daily,
-                candleOpenTime: pair[1].open_time
-              });
-            }
+            results.push({
+              timeframe: "Min240",
+              symbol: item.contract.symbol,
+              candleClose: pair.length === 2 ? pair[1].close_price : null,
+              previousCandleClose: pair.length === 2 ? pair[0].close_price : null,
+              vwapDaily: pair.length === 2 ? pair[1].vwap_daily : null,
+              candleOpenTime: pair.length === 2 ? pair[1].open_time : item.current.open_time
+            });
           }
         }
       } catch (error) {
