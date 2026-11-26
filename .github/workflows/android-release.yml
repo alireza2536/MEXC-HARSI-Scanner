@@ -62,7 +62,7 @@ jobs:
           import fs from 'node:fs';
           const file = 'android/app/build.gradle';
           let gradle = fs.readFileSync(file, 'utf8');
-          const buildNumber = Number(process.env.BUILD_NUMBER);
+          const buildNumber = 1000 + Number(process.env.BUILD_NUMBER);
           if (!Number.isSafeInteger(buildNumber) || buildNumber < 1) throw new Error('Invalid Android versionCode');
           if (!/versionCode\s+\d+/.test(gradle)) throw new Error('Could not locate generated Android versionCode');
           gradle = gradle.replace(/versionCode\s+\d+/, `versionCode ${buildNumber}`);
