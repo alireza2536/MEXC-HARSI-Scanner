@@ -10,11 +10,23 @@ export function calculateDailyVwap(candles,nowMs=Date.now()){
  return {vwap_daily:weightedVwap(daily),daily_candle_count:daily.length};
 }
 
-/** True only when the previous candle was at/below VWAP and the current candle is above it. */
-export function isCrossUp(previousClose, currentClose, vwap) {
+/** Validate values shared by VWAP crossing predicates. */
+function validCrossValues(previousClose, currentClose, vwap) {
  const validInput = (value) => value !== null && value !== undefined
   && !(typeof value === "string" && value.trim() === "");
- if (![previousClose, currentClose, vwap].every(validInput)) return false;
- const previous=Number(previousClose),current=Number(currentClose),level=Number(vwap);
- return [previous,current,level].every(Number.isFinite)&&previous<=level&&current>level;
+ if (![previousClose, currentClose, vwap].every(validInput)) return null;
+ const values=[Number(previousClose),Number(currentClose),Number(vwap)];
+ return values.every(Number.isFinite)?values:null;
+}
+
+/** True only when the previous candle was at/below VWAP and the current candle is above it. */
+export function isCrossUp(previousClose, currentClose, vwap) {
+ const values=validCrossValues(previousClose,currentClose,vwap);
+ return values!==null&&values[0]<=values[2]&&values[1]>values[2];
+}
+
+/** True only when the previous candle was at/above VWAP and the current candle is below it. */
+export function isCrossDown(previousClose, currentClose, vwap) {
+ const values=validCrossValues(previousClose,currentClose,vwap);
+ return values!==null&&values[0]>=values[2]&&values[1]<values[2];
 }
