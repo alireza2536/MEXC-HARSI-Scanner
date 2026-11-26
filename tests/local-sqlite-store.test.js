@@ -28,7 +28,7 @@ test("local SQLite store initializes schema and commits candle/HA rows atomicall
   const db = fakeConnection();
   const store = createLocalSqliteStore(db);
   await store.initialize();
-  assert.equal(db.executed.length, 14);
+  assert.equal(db.executed.length, 16);
   assert.match(db.queries[0].statement, /foreign_keys = ON/i);
   assert.ok(db.executed.some((sql) => sql.includes("mexc_futures_ohlcv_5m")));
   assert.ok(db.executed.some((sql) => sql.includes("mexc_harsi_results_5m")));
