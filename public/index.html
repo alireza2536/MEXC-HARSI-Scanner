@@ -10,118 +10,573 @@
     *{box-sizing:border-box}body{margin:0;min-height:100vh;padding:24px;background:radial-gradient(ellipse at top,#172b47 0,#0b1220 55%)}
     main{max-width:900px;margin:0 auto}.panel{background:#111c2d;border:1px solid #26364d;border-radius:18px;padding:22px;margin:16px 0;box-shadow:0 12px 35px #0003}
     h1{font-size:22px;margin:0 0 10px;text-align:center}.muted{color:#9fb0c7;font-size:14px;line-height:1.9}
+    .refresh-note{width:100%;max-width:320px;margin:6px auto 10px;transform:none;color:#94a3b8;font-size:8px;line-height:1.6;text-align:center;white-space:normal}
     button{width:100%;border:0;border-radius:12px;padding:15px 18px;font-size:16px;font-weight:700;color:#061321;background:#60d5b2;cursor:pointer}
-    button:disabled{opacity:.55;cursor:not-allowed}.status{display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;margin:14px 0;text-align:center}
-    .dot{width:10px;height:10px;border-radius:50%;background:#8493a8}.running .dot{background:#f6bd4b;box-shadow:0 0 0 5px #f6bd4b22}
-    .completed .dot{background:#60d5b2}.failed .dot{background:#ff7777}
-    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
-    .stat{background:#0b1422;border-radius:12px;padding:14px}.stat strong{display:block;font-size:22px;margin-bottom:5px}
-    .stat span{font-size:12px;color:#9fb0c7}
-    .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:520px}th,td{text-align:right;padding:12px 10px;border-bottom:1px solid #26364d;font-size:13px}th{color:#9fb0c7}
-    .ha-sort-toggle{width:32px;height:32px;padding:0;margin-right:6px;border-radius:8px;background:#26364d;color:#e5edf8;font-size:20px;line-height:1;vertical-align:middle}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    #refresh{color:#fff;background:#1E3A8A}
+    .timeframe-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+    .timeframe-picker button{background:#26364d;color:#e5edf8;border:1px solid #40536d;padding:8px 6px;font-size:13px;line-height:1.2;border-radius:9px;min-height:36px}
+    .timeframe-picker button.active{background:#1E3A8A;border-color:#1E3A8A;color:#fff}
+    .timeframe-picker button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+    #refresh.is-cancel{background:#9F1239}
+    .progress-track{height:9px;margin:18px 0 9px;background:#26364d;border-radius:999px;overflow:hidden}
+    .progress-fill{height:100%;width:0;background:#16a36a;border-radius:999px;transition:width .25s ease}
+    .progress-details{display:none;align-items:center;justify-content:space-between;gap:12px;font-size:15px}
+    #message{margin:0;color:#e5edf8;text-align:right;font-size:15px}
+    #errorCount{color:#ff9999;white-space:nowrap;font-weight:700;font-size:15px}
+    .table-wrap{width:100%;max-width:100%;overflow-x:hidden}#resultsTable{width:100%;min-width:0;max-width:100%;table-layout:fixed}table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:0}th,td{width:25%;min-width:0;text-align:center;padding:8px 2px;border-bottom:1px solid #26364d;font-size:12px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}th{color:#9fb0c7}th:first-child,td:first-child{text-align:center}
+    #rows td.coin-card-cell{width:100%;padding:3px 2px;border-bottom:0}
+    .coin-card{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));width:100%;min-width:0;align-items:center;gap:0;padding:6px 0;border:1px solid #26364d;border-radius:8px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums;box-sizing:border-box}
+    .coin-card.alt{background:#26364d}
+    .coin-card > span{min-width:0;text-align:center}
+    .ha-positive{color:#22c55e;font-weight:700}
+    .ha-negative{color:#f87171;font-weight:700}
+    .ha-zero{color:#94a3b8;font-weight:700}
+    .results-heading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px}.ha-sort-toggle{width:28px;height:24px;padding:0;margin:0;border-radius:7px;background:#26364d;color:#e5edf8;font-size:19px;line-height:1}
     .ha-sort-toggle:hover{background:#354862}
-    .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center}
+    .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;font-size:15px}
     .ha-filter{margin-bottom:16px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
-    .ha-filter-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .ha-filter label{display:block;color:#9fb0c7;font-size:12px;margin-bottom:7px;text-align:center}
-    .ha-filter input{width:100%;min-width:0;background:#172438;color:#e5edf8;border:1px solid #354862;border-radius:10px;padding:12px;text-align:center;font:inherit;font-size:16px;direction:ltr}
-    .ha-filter-actions{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:12px}
-    .ha-filter-actions button{padding:11px 14px;font-size:14px}
-    .ha-filter-actions .secondary{background:#26364d;color:#e5edf8}
+    .vwap-filter{margin:0 0 14px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
+    .vwap-filter-title{margin:0 0 10px;text-align:center;font-size:14px;font-weight:700}
+    .vwap-filter-row{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:center;margin:8px 0}
+    .vwap-filter-timeframe{width:52px;min-height:40px;display:flex;align-items:center;justify-content:center;background:#172438;border:1px solid #354862;border-radius:9px;font-size:14px;font-weight:700;direction:ltr}
+    .vwap-filter-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+    .vwap-filter-options button{display:flex;align-items:center;justify-content:center;width:100%;height:40px;min-height:40px;box-sizing:border-box;padding:7px 2px;border:1px solid #354862;border-radius:9px;background:#172438;color:#e5edf8;font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap}
+    .vwap-filter-options button.active{background:#1D4ED8;border-color:#1D4ED8;color:#fff}
+    .vwap-filter-options button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+    .ha-filter-fields{display:grid;grid-template-columns:1fr;gap:12px}
+    .ha-filter-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center}
+    .ha-filter-timeframe{display:flex;align-items:center;justify-content:center;width:100%;background:#172438;border:1px solid #354862;border-radius:10px;color:#e5edf8;font-size:14px;font-weight:700;text-align:center;padding:0;height:46px;box-sizing:border-box;cursor:pointer}.ha-filter-timeframe.active{background:#1D4ED8;border-color:#1D4ED8;color:#fff}.ha-filter-timeframe:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+    .ha-filter-headings{color:#e5edf8;font-size:13px;font-weight:700;text-align:center;align-items:center}
+    .ha-filter-headings span{padding:2px}
+    .ha-filter label{display:block;color:#9fb0c7;font-size:12px;margin-bottom:7px;text-align:center;visibility:hidden}
+    .ha-filter input{width:100%;min-width:0;background:#172438;color:#e5edf8;border:1px solid #354862;border-radius:10px;padding:12px;text-align:center !important;font:inherit;font-size:16px;direction:ltr;font-variant-numeric:tabular-nums}
+    .ha-filter-timeframe{min-height:46px;padding:0;border:1px solid #405879;border-radius:10px;background:#263b59;color:#e5edf8;font-size:14px;font-weight:700;cursor:pointer}
+    .ha-filter-timeframe.active{background:#1D4ED8;border-color:#1D4ED8;color:#fff}
+    .ha-filter-timeframe:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
     #filterMessage{margin:10px 0 0;text-align:center;font-size:12px;color:#9fb0c7;min-height:18px}
-    @media(max-width:540px){.ha-filter{padding:12px}.ha-filter-actions{grid-template-columns:1fr 1fr}}
+    .export-menu-wrap{display:flex;justify-content:flex-end;position:relative;margin:10px 0 4px}
+    #exportMenuToggle{width:42px;height:42px;padding:0;border:1px solid #40536d;border-radius:10px;background:#26364d;color:#e5edf8;font-size:25px;line-height:1}
+    #exportMenuToggle:hover,#exportMenuToggle[aria-expanded="true"]{background:#354862}
+    .export-menu{position:absolute;z-index:20;top:46px;right:0;min-width:220px;padding:6px;background:#172438;border:1px solid #40536d;border-radius:12px;box-shadow:0 12px 28px #0008}
+    .export-menu[hidden]{display:none}
+    .export-menu button{display:block;width:100%;padding:12px 14px;margin:2px 0;text-align:right;background:transparent;color:#e5edf8;border-radius:8px;font-size:13px}
+    .export-menu button:hover{background:#26364d}
+    .save-name-backdrop{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;background:#0009}
+    .save-name-backdrop[hidden]{display:none}
+    .save-name-dialog{width:min(100%,360px);padding:18px;background:#172438;border:1px solid #40536d;border-radius:16px;box-shadow:0 18px 48px #0009}
+    .save-name-dialog h2{margin:0 0 14px;font-size:17px;text-align:right}
+    .save-name-dialog input{width:100%;padding:12px;background:#0b1422;color:#e5edf8;border:1px solid #40536d;border-radius:10px;font:inherit;text-align:right;direction:auto}
+    .save-name-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+    .save-name-actions button{padding:11px;font-size:14px}
+    #confirmSaveName{background:#1E3A8A;color:#fff}
+    #cancelSaveName{background:#26364d;color:#e5edf8;border:1px solid #40536d}
+    @media(max-width:540px){.ha-filter{padding:12px}}
 
-    @media(max-width:540px){body{padding:12px}.panel{padding:16px}.stats{gap:7px}.stat{padding:10px}.stat strong{font-size:18px}h1{font-size:19px}}
+    .ha-topbar{display:flex;align-items:center;justify-content:center;position:relative;min-height:42px;margin-bottom:10px}
+    .ha-topbar h1{margin:0}
+    .ha-menu button{margin:4px 0;padding:12px;font-size:14px}
+    @media(max-width:540px){body{padding:12px}.panel{padding:16px}h1{font-size:19px}.progress-details,#message,#errorCount,.error{font-size:14px}}
   </style>
 </head>
 <body>
 <main>
   <section class="panel">
-    <h1>اسکن لحظه‌ای MEXC</h1>
+    <div class="ha-topbar">
+      <h1>اسکن لحظه‌ای MEXC</h1>
+      </div>
+    </div>
+    <div class="timeframe-picker" aria-label="انتخاب تایم‌فریم">
+      <button id="timeframe5m" type="button" aria-pressed="false">۵ دقیقه</button>
+      <button id="timeframe15m" type="button" aria-pressed="false">۱۵ دقیقه</button>
+      <button id="timeframe1h" type="button" aria-pressed="false">۱ ساعت</button>
+    </div>
     <button id="refresh">بروزرسانی</button>
-    <div id="status" class="status"><span class="dot"></span><span>آماده بروزرسانی</span></div>
-    <p id="message" class="muted" aria-live="polite" style="text-align:center">برای شروع اسکن، دکمه بروزرسانی را بزنید.</p>
-    <div class="stats">
-      <div class="stat"><strong id="eligible">—</strong><span>ارز</span></div>
-      <div class="stat"><strong id="updated">—</strong><span>بروز شده</span></div>
-      <div class="stat"><strong id="failed">—</strong><span>خطا</span></div>
+    <p class="refresh-note">پس از بروزرسانی، شاید دکمه بروزرسانی برای چند دقیقه<br>به‌دلیل پردازش اطلاعات غیرفعال بماند. لطفاً چند لحظه صبر کنید.</p>
+    <div class="progress-track" role="progressbar" aria-label="میزان پردازش" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div id="progressFill" class="progress-fill"></div>
+    </div>
+    <div class="progress-details" aria-live="polite">
+      <p id="message">پردازش: — از —</p>
+      <span id="errorCount">خطا: —</span>
     </div>
     <p id="error" class="error"></p>
   </section>
   <section class="panel">
-    <div class="ha-filter" aria-label="محدوده نمایش بر اساس مقدار">
-      <div class="ha-filter-fields">
-        <div><label for="filterFrom">از مقدار</label><input id="filterFrom" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="4" placeholder="مثلاً -5"></div>
-        <div><label for="filterTo">تا مقدار</label><input id="filterTo" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="20" placeholder="مثلاً 10"></div>
+    <div class="vwap-filter" aria-label="فیلتر قیمت نسبت به VW">
+      <p class="vwap-filter-title">فیلتر قیمت نسبت به VW</p>
+      <div class="vwap-filter-row" data-vwap-timeframe="Min5">
+        <span class="vwap-filter-timeframe">5m</span>
+        <div class="vwap-filter-options">
+          <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
+          <button type="button" data-vwap-condition="crossDown" aria-pressed="false">Cross Down</button>
+        </div>
       </div>
-      <div class="ha-filter-actions">
-        <button id="applyFilter" type="button">اعمال فیلتر</button>
-        <button id="clearFilter" class="secondary" type="button">حذف فیلتر</button>
+      <div class="vwap-filter-row" data-vwap-timeframe="Min15">
+        <span class="vwap-filter-timeframe">15m</span>
+        <div class="vwap-filter-options">
+          <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
+          <button type="button" data-vwap-condition="crossDown" aria-pressed="false">Cross Down</button>
+        </div>
+      </div>
+      <div class="vwap-filter-row" data-vwap-timeframe="Min60">
+        <span class="vwap-filter-timeframe">1h</span>
+        <div class="vwap-filter-options">
+          <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
+          <button type="button" data-vwap-condition="crossDown" aria-pressed="false">Cross Down</button>
+        </div>
+      </div>
+      <div class="vwap-filter-row" data-vwap-timeframe="Min240">
+        <span class="vwap-filter-timeframe">4h</span>
+        <div class="vwap-filter-options">
+          <button type="button" data-vwap-condition="crossUp" aria-pressed="false">Cross Up</button>
+          <button type="button" data-vwap-condition="crossDown" aria-pressed="false">Cross Down</button>
+        </div>
+      </div>
+    </div>
+    <div class="ha-filter" aria-label="محدوده نمایش بر اساس مقدار">
+      <div class="ha-filter-fields" id="haFilterFields">
+        <div class="ha-filter-row ha-filter-headings" aria-hidden="true">
+          <span></span>
+          <span>از</span>
+          <span>تا</span>
+        </div>
+        <div class="ha-filter-row" data-timeframe="Min5">
+          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min5" aria-pressed="false">5m</button>
+          <div><input id="filterFrom5m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
+          <div><input id="filterTo5m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="10"></div>
+        </div>
+        <div class="ha-filter-row" data-timeframe="Min15">
+          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min15" aria-pressed="false">15m</button>
+          <div><input id="filterFrom15m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="5"></div>
+          <div><input id="filterTo15m" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="20"></div>
+        </div>
+        <div class="ha-filter-row" data-timeframe="Min60">
+          <button type="button" class="ha-filter-timeframe" data-timeframe-label="Min60" aria-pressed="false">1h</button>
+          <div><input id="filterFrom1h" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="2.5"></div>
+          <div><input id="filterTo1h" class="ha-filter-number" type="text" inputmode="text" autocomplete="off" spellcheck="false" dir="ltr" value="20"></div>
+        </div>
       </div>
       <p id="filterMessage" aria-live="polite">دو مقدار دلخواه وارد کنید؛ مثبت و منفی پذیرفته می‌شود.</p>
     </div>
+    <div class="export-menu-wrap">
+      <button id="exportMenuToggle" type="button" aria-label="منوی خروجی" title="منوی خروجی" aria-expanded="false" aria-controls="exportMenu">⋮</button>
+      <div id="exportMenu" class="export-menu" hidden>
+        <button id="exportFiltered" type="button">ذخیره نتایج فیلترشده</button>
+      </div>
+    </div>
+    <div id="saveNameBackdrop" class="save-name-backdrop" hidden>
+      <div class="save-name-dialog" role="dialog" aria-modal="true" aria-labelledby="saveNameTitle">
+        <h2 id="saveNameTitle">نام فایل خروجی</h2>
+        <input id="saveFileName" type="text" autocomplete="off" maxlength="100" aria-label="نام فایل">
+        <div class="save-name-actions">
+          <button id="confirmSaveName" type="button">ذخیره</button>
+          <button id="cancelSaveName" type="button">انصراف</button>
+        </div>
+      </div>
+    </div>
     <div class="table-wrap">
-      <table style="min-width:0"><thead><tr><th>مقدار <button id="haSort" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی صعودی" title="مرتب‌سازی صعودی">↑</button></th><th>نام ارز</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="2" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
+      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col5m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"></colgroup><thead><tr><th>نام ارز</th><th id="heading5m"><div class="results-heading"><span>۵ دقیقه</span><button id="sort5m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 5m" title="مرتب‌سازی نزولی 5m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
 </main>
 <script>
 const button=document.getElementById("refresh");
-const statusEl=document.getElementById("status");
+const timeframe5m=document.getElementById("timeframe5m");
+const timeframe15m=document.getElementById("timeframe15m");
+const timeframe1h=document.getElementById("timeframe1h");
+const selectedTimeframes=new Set();
+const filterTimeframes=new Set();
+const vwapConditions={Min5:null,Min15:null,Min60:null,Min240:null};
+function vwapConditionMatches(item){
+  return ["Min5","Min15","Min60","Min240"].every(timeframe=>{
+    const condition=vwapConditions[timeframe];
+    if(!condition) return true;
+    const price=item["price"+timeframe],previousPrice=item["previousPrice"+timeframe],vwap=item["vwap"+timeframe];
+    if(price===null||price===undefined||previousPrice===null||previousPrice===undefined||vwap===null||vwap===undefined) return false;
+    const current=Number(price),previous=Number(previousPrice),level=Number(vwap);
+    if(![current,previous,level].every(Number.isFinite)) return false;
+    if(condition==="crossUp") return previous<=level&&current>level;
+    if(condition==="crossDown") return previous>=level&&current<level;
+    return false;
+  });
+}
+for(const row of document.querySelectorAll(".vwap-filter-row")){
+  const timeframe=row.dataset.vwapTimeframe;
+  for(const control of row.querySelectorAll("button[data-vwap-condition]")){
+    control.addEventListener("click",()=>{
+      const selected=control.dataset.vwapCondition;
+      vwapConditions[timeframe]=vwapConditions[timeframe]===selected?null:selected;
+      const active=vwapConditions[timeframe]===selected;
+      control.classList.toggle("active",active);
+      control.setAttribute("aria-pressed",String(active));
+      renderRows();
+    });
+  }
+}
+function refreshActiveRanges(){
+  const ranges={};
+  for(const timeframe of filterTimeframes){
+    const pair=filterInputs[timeframe];
+    const fromText=normalizeNumericInput(pair.from.value),toText=normalizeNumericInput(pair.to.value);
+    if(fromText===""||toText===""){
+      filterMessage.textContent="لطفاً مقدار «از» و «تا» را برای "+(timeframe==="Min5"?"5m":timeframe==="Min15"?"15m":"1h")+" وارد کنید.";
+      activeRanges=null;
+      return false;
+    }
+    const from=Number(fromText),to=Number(toText);
+    if(!Number.isFinite(from)||!Number.isFinite(to)){
+      filterMessage.textContent="مقادیر فیلتر باید عدد معتبر باشند.";
+      activeRanges=null;
+      return false;
+    }
+    ranges[timeframe]={min:Math.min(from,to),max:Math.max(from,to)};
+  }
+  activeRanges=Object.keys(ranges).length?ranges:null;
+  filterMessage.textContent=filterTimeframes.size
+    ? "فیلتر HARSI برای تایم‌فریم‌های روشن فعال است."
+    : "هیچ تایم‌فریمی انتخاب نشده؛ همه مقادیر نمایش داده می‌شوند.";
+  return true;
+}
+function toggleTimeframe(value){
+  if(selectedTimeframes.has(value)){
+    selectedTimeframes.delete(value);
+  }else{
+    selectedTimeframes.add(value);
+  }
+  updateTimeframeButtons();
+  renderRows();
+}
+function updateTimeframeButtons(){
+  for(const [element,value,label] of [[timeframe5m,"Min5","۵ دقیقه"],[timeframe15m,"Min15","۱۵ دقیقه"],[timeframe1h,"Min60","۱ ساعت"]]){
+    const active=selectedTimeframes.has(value);
+    element.classList.toggle("active",active);
+    element.setAttribute("aria-pressed",String(active));
+    element.textContent=label+(active?" ✓":"");
+  }
+ }
+function updateFilterTimeframeButtons(){
+  for(const element of document.querySelectorAll(".ha-filter-timeframe[data-timeframe-label]")){
+    const active=filterTimeframes.has(element.dataset.timeframeLabel);
+    element.classList.toggle("active",active);
+    element.setAttribute("aria-pressed",String(active));
+  }
+}
+for(const element of document.querySelectorAll(".ha-filter-timeframe[data-timeframe-label]")){
+  element.addEventListener("click",()=>{
+    const timeframe=element.dataset.timeframeLabel;
+    if(filterTimeframes.has(timeframe)) filterTimeframes.delete(timeframe);
+    else filterTimeframes.add(timeframe);
+    if(!refreshActiveRanges()){
+      filterTimeframes.delete(timeframe);
+      updateFilterTimeframeButtons();
+      refreshActiveRanges();
+    }
+    updateFilterTimeframeButtons();
+    renderRows();
+  });
+}
+updateFilterTimeframeButtons();
+timeframe5m.addEventListener("click",()=>toggleTimeframe("Min5"));
+timeframe15m.addEventListener("click",()=>toggleTimeframe("Min15"));
+timeframe1h.addEventListener("click",()=>toggleTimeframe("Min60"));
 const message=document.getElementById("message");
+const progressTrack=document.querySelector(".progress-track");
+const progressFill=document.getElementById("progressFill");
+const errorCount=document.getElementById("errorCount");
 const errorEl=document.getElementById("error");
 const rows=document.getElementById("rows");
-const filterFrom=document.getElementById("filterFrom");
-const filterTo=document.getElementById("filterTo");
+const resultsTable=document.getElementById("resultsTable");
+const heading5m=document.getElementById("heading5m");
+const heading15m=document.getElementById("heading15m");
+const coinCol=document.getElementById("coinCol");
+const col5m=document.getElementById("col5m");
+const col15m=document.getElementById("col15m");
+const heading1h=document.getElementById("heading1h");
+const col1h=document.getElementById("col1h");
+
+const filterInputs={
+  Min5:{from:document.getElementById("filterFrom5m"),to:document.getElementById("filterTo5m")},
+  Min15:{from:document.getElementById("filterFrom15m"),to:document.getElementById("filterTo15m")},
+  Min60:{from:document.getElementById("filterFrom1h"),to:document.getElementById("filterTo1h")}
+};
+const filterRows=[...document.querySelectorAll(".ha-filter-row")];
+const filterFields=document.getElementById("haFilterFields");
 const filterMessage=document.getElementById("filterMessage");
-const applyFilterButton=document.getElementById("applyFilter");
-const clearFilterButton=document.getElementById("clearFilter");
-const haSort=document.getElementById("haSort");
-let sortDirection="asc";
+const sort5m=document.getElementById("sort5m");
+const sort15m=document.getElementById("sort15m");
+const sort1h=document.getElementById("sort1h");
+function toEnglishDigits(value){
+  return String(value??"")
+    .replace(/[۰-۹]/g,digit=>String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g,digit=>String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+}
+function useEnglishDigits(input){
+  input.value=toEnglishDigits(input.value).replace(/[−–—]/g,"-");
+}
+for(const pair of Object.values(filterInputs)) for(const input of [pair.from,pair.to]){
+  input.style.textAlign="center";
+  input.addEventListener("input",()=>{
+    useEnglishDigits(input);
+    input.style.textAlign="center";
+    // Re-evaluate HARSI ranges as soon as every enabled timeframe has two valid values.
+    if(filterTimeframes.size){
+      const ready=[...filterTimeframes].every(timeframe=>{
+        const rangeInputs=filterInputs[timeframe];
+        const from=normalizeNumericInput(rangeInputs.from.value);
+        const to=normalizeNumericInput(rangeInputs.to.value);
+        return from!==""&&to!==""&&Number.isFinite(Number(from))&&Number.isFinite(Number(to));
+      });
+      if(ready){
+        refreshActiveRanges();
+        renderRows();
+      }else{
+        filterMessage.textContent="برای اعمال بازه HARSI، مقدار «از» و «تا» را کامل کنید.";
+      }
+    }
+  });
+  input.addEventListener("focus",()=>{input.value="";input.style.textAlign="center";});
+  useEnglishDigits(input);
+}
+function updateFilterRows(){
+  for(const row of filterRows) if(row.dataset.timeframe) row.hidden=false;
+}
+updateFilterRows();
+let sortDirections={Min5:"desc",Min15:"desc",Min60:"desc"};
+let sortBy="Min5";
 let latestResults=[];
-let activeRange={min:4,max:20};
+let activeRanges=null;
+let latestProgress=null;
 const fmt=(value)=>value===null||value===undefined?"—":Number(value).toLocaleString("en-US",{maximumFractionDigits:8});
 const fmtHa=(value)=>value===null||value===undefined?"—":Number(value).toFixed(1);
-function renderRows(){
-  rows.replaceChildren();
-  const filteredResults=activeRange
-    ? latestResults.filter(item=>{
-        const value=Number(item.haClose);
-        return item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)&&value>=activeRange.min&&value<=activeRange.max;
-      })
-    : latestResults;
-  const results=[...filteredResults].sort((a,b)=>{
-    const difference=Number(a.haClose)-Number(b.haClose);
-    return sortDirection==="asc"?difference:-difference;
-  });
-  for(const item of results){
-    const tr=document.createElement("tr");
-    for(const value of [fmtHa(item.haClose),String(item.symbol||"").replace(/(?:_|-)??USDT$/i,"")]){
-      const td=document.createElement("td");td.textContent=value;tr.append(td);
+function groupedResults(){
+  const bySymbol=new Map();
+  for(const item of latestResults){
+    // Normalize MEXC symbol variants before joining timeframe results.
+    // Consume the optional separator with USDT (e.g. BTC_USDT -> BTC).
+    const symbol=String(item.symbol||"").trim().toUpperCase().replace(/[_-]?USDT$/i,"").replace(/[_-]/g,"");
+    if(!symbol||!["Min5","Min15","Min60","Min240"].includes(item.timeframe)) continue;
+    if(!bySymbol.has(symbol)) bySymbol.set(symbol,{
+      symbol,Min5:null,Min15:null,Min60:null,vwapDaily:null,
+      priceMin5:null,priceMin15:null,priceMin60:null,priceMin240:null,
+      previousPriceMin5:null,previousPriceMin15:null,previousPriceMin60:null,previousPriceMin240:null,
+      vwapMin5:null,vwapMin15:null,vwapMin60:null,vwapMin240:null
+    });
+    const row=bySymbol.get(symbol);
+    const timeframe=item.timeframe;
+    const value=Number(item.haClose);
+    if(item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)){
+      row[timeframe]=value;
     }
+    // Compare each timeframe's own current candle close with its own daily VWAP.
+    const priceSource=item.candleClose;
+    const price=Number(priceSource);
+    if(priceSource!==null&&priceSource!==undefined&&Number.isFinite(price)){
+      row["price"+timeframe]=price;
+      const previousPrice=Number(item.previousCandleClose);
+      if(item.previousCandleClose!==null&&item.previousCandleClose!==undefined&&Number.isFinite(previousPrice)) row["previousPrice"+timeframe]=previousPrice;
+    }
+    const daily=Number(item.vwapDaily);
+    if(item.vwapDaily!==null&&item.vwapDaily!==undefined&&Number.isFinite(daily)){
+      row["vwap"+timeframe]=daily;
+      // The single VW column remains the 15m-based daily VWAP display.
+      if(timeframe==="Min15") row.vwapDaily=daily;
+    }
+  }
+  return [...bySymbol.values()];
+}
+function updateResultsColumns(){
+  const displayTimeframes=new Set([...selectedTimeframes,...filterTimeframes]);
+  const show5m=displayTimeframes.has("Min5");
+  const show15m=displayTimeframes.has("Min15");
+  const show1h=displayTimeframes.has("Min60");
+  heading5m.hidden=!show5m; col5m.hidden=!show5m;
+  heading15m.hidden=!show15m; col15m.hidden=!show15m;
+  heading1h.hidden=!show1h; col1h.hidden=!show1h;
+  const columnCount=1+Number(show5m)+Number(show15m)+Number(show1h);
+  // Keep the currency column anchored in its original slot and width.
+  const width=(100/columnCount).toFixed(3)+"%";
+  coinCol.style.width=width;
+  col5m.style.width=width;
+  col15m.style.width=width;
+  col1h.style.width=width;
+  if(!displayTimeframes.has(sortBy)){
+    sortBy=show5m?"Min5":show15m?"Min15":show1h?"Min60":"Min5";
+  }
+}
+function renderRows(){
+  updateResultsColumns();
+  rows.replaceChildren();
+  const visibleTimeframes=activeRanges
+    ? Object.keys(activeRanges)
+    : ["Min5","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
+  const all=groupedResults();
+  let results=activeRanges
+    ? all.filter(item=>visibleTimeframes.every(timeframe=>{
+        const range=activeRanges[timeframe],value=item[timeframe];
+        return range&&value!==null&&value>=range.min&&value<=range.max;
+      }))
+    : all;
+  results=results.filter(vwapConditionMatches);
+  const direction=sortDirections[sortBy];
+  results=[...results].sort((a,b)=>{
+    const av=a[sortBy],bv=b[sortBy];
+    if(av===null&&bv===null)return a.symbol.localeCompare(b.symbol);
+    if(av===null)return 1;
+    if(bv===null)return -1;
+    const difference=av-bv;
+    return direction==="asc"?difference:-difference;
+  });
+  for(const [index,item] of results.entries()){
+    const tr=document.createElement("tr");
+    const td=document.createElement("td");
+    td.colSpan=4;
+    td.className="coin-card-cell";
+    const card=document.createElement("div");
+    card.className="coin-card"+(index%2===0?" alt":"");
+    const visibleTimeframes=["Min5","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
+    card.style.gridTemplateColumns="repeat("+(visibleTimeframes.length+1)+",minmax(0,1fr))";
+    const coinCell=document.createElement("span");
+    coinCell.textContent=item.symbol;
+    card.append(coinCell);
+    for(const timeframe of visibleTimeframes){
+      const cell=document.createElement("span");
+      const value=item[timeframe];
+      cell.classList.add(value===null||value===undefined?"ha-zero":value>0?"ha-positive":value<0?"ha-negative":"ha-zero");
+      cell.textContent=fmtHa(value);
+      card.append(cell);
+    }
+    td.append(card);
+    tr.append(td);
     rows.append(tr);
   }
   if(!results.length){
     const tr=document.createElement("tr");
-    const td=document.createElement("td");td.colSpan=2;td.className="muted";
-    td.textContent=latestResults.length?"مقداری در این بازه پیدا نشد.":"مقداری برای نمایش وجود ندارد.";
+    const td=document.createElement("td");td.colSpan=4;td.className="muted";
+    td.textContent=all.length?"مقداری در این بازه پیدا نشد.":"مقداری برای نمایش وجود ندارد.";
     tr.append(td);rows.append(tr);
   }
-  if(activeRange){
-    filterMessage.textContent="نمایش "+results.length+" از "+latestResults.length+" ارز | بازه: "+fmt(activeRange.min)+" تا "+fmt(activeRange.max);
-  }else{
-    filterMessage.textContent="فیلتر غیرفعال است؛ "+latestResults.length+" ارز نمایش داده می‌شود.";
+  const numberFormat=new Intl.NumberFormat("fa-IR");
+  filterMessage.textContent=numberFormat.format(results.length)+" ارز دارای شرط";
+}
+function getExportRows(filteredOnly){
+  const visibleTimeframes=activeRanges
+    ? Object.keys(activeRanges)
+    : ["Min5","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
+  const all=groupedResults();
+  let results=filteredOnly&&activeRanges
+    ? all.filter(item=>visibleTimeframes.every(timeframe=>{
+        const range=activeRanges[timeframe],value=item[timeframe];
+        return range&&value!==null&&value>=range.min&&value<=range.max;
+      }))
+    : all;
+  if(filteredOnly) results=results.filter(vwapConditionMatches);
+  const direction=sortDirections[sortBy];
+  return [...results].sort((a,b)=>{
+    const av=a[sortBy],bv=b[sortBy];
+    if(av===null&&bv===null)return a.symbol.localeCompare(b.symbol);
+    if(av===null)return 1;
+    if(bv===null)return -1;
+    const difference=av-bv;
+    return direction==="asc"?difference:-difference;
+  });
+}
+async function exportResults(filteredOnly, chosenName){
+  const visibleTimeframes=activeRanges
+    ? Object.keys(activeRanges)
+    : ["Min5","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
+  const results=getExportRows(filteredOnly);
+  if(!results.length){
+    filterMessage.textContent="نتیجه‌ای برای خروجی گرفتن وجود ندارد.";
+    return;
+  }
+  const headings=["ارز",...visibleTimeframes.map(tf=>tf==="Min5"?"۵ دقیقه":tf==="Min15"?"۱۵ دقیقه":"۱ ساعت"),"VWAP"];
+  const lines=[headings.join("\t"),...results.map(item=>[
+    item.symbol,...visibleTimeframes.map(tf=>item[tf]===null?"—":Number(item[tf]).toFixed(1)),item.vwapDaily===null?"—":fmt(item.vwapDaily)
+  ].join("\t"))];
+  const content="\uFEFF"+lines.join("\r\n")+"\r\n";
+  const stamp=new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
+  const baseName=String(chosenName||("Harsi-"+(filteredOnly?"filtered":"all")+"-"+stamp)).trim().replace(/[\\\\/:*?"<>|]/g,"-").replace(/\\.txt$/i,"").slice(0,100);
+  const fileName=(baseName||("Harsi-filtered-"+stamp))+".txt";
+  try{
+    if(window.harsiDesktop?.exportText){
+      const result=await window.harsiDesktop.exportText(content,fileName);
+      filterMessage.textContent=result?.canceled?"ذخیره فایل لغو شد.":"فایل TXT با موفقیت ذخیره شد.";
+    }else if(window.harsiAndroidExportText){
+      const result=await window.harsiAndroidExportText(content,fileName);
+      filterMessage.textContent="فایل در پوشه Downloads/Harsi ذخیره شد: "+(result?.fileName||fileName);
+    }else{
+      const blob=new Blob([content],{type:"text/plain;charset=utf-8"});
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement("a");
+      link.href=url;link.download=fileName;link.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      filterMessage.textContent="فایل TXT آماده شد؛ محل ذخیره را در دانلودها بررسی کنید.";
+    }
+  }catch(error){
+    filterMessage.textContent="ذخیره فایل ناموفق بود: "+toEnglishDigits(error.message||error);
   }
 }
-haSort.addEventListener("click",()=>{
-  sortDirection=sortDirection==="asc"?"desc":"asc";
-  haSort.textContent=sortDirection==="asc"?"↑":"↓";
-  const directionLabel=sortDirection==="asc"?"صعودی":"نزولی";
-  haSort.setAttribute("aria-label","مرتب‌سازی "+directionLabel);
-  haSort.title="مرتب‌سازی "+directionLabel;
-  renderRows();
+const exportMenuToggle=document.getElementById("exportMenuToggle");
+const exportMenu=document.getElementById("exportMenu");
+function closeExportMenu(){exportMenu.hidden=true;exportMenuToggle.setAttribute("aria-expanded","false");}
+exportMenuToggle.addEventListener("click",()=>{
+  const opening=exportMenu.hidden;
+  exportMenu.hidden=!opening;
+  exportMenuToggle.setAttribute("aria-expanded",String(opening));
 });
+document.addEventListener("click",event=>{
+  if(!event.target.closest(".export-menu-wrap"))closeExportMenu();
+});
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closeExportMenu();});
+const saveNameBackdrop=document.getElementById("saveNameBackdrop");
+const saveFileName=document.getElementById("saveFileName");
+function openSaveNameDialog(){
+  const now=new Date();
+  const pad=value=>String(value).padStart(2,"0");
+  const stamp=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate())+"-"+pad(now.getHours())+"-"+pad(now.getMinutes())+"-"+pad(now.getSeconds());
+  saveFileName.value=stamp;
+  saveNameBackdrop.hidden=false;
+  setTimeout(()=>{saveFileName.focus();saveFileName.select();},0);
+}
+function closeSaveNameDialog(){saveNameBackdrop.hidden=true;}
+document.getElementById("exportFiltered").addEventListener("click",()=>{closeExportMenu();openSaveNameDialog();});
+document.getElementById("cancelSaveName").addEventListener("click",closeSaveNameDialog);
+saveNameBackdrop.addEventListener("click",event=>{if(event.target===saveNameBackdrop)closeSaveNameDialog();});
+document.getElementById("confirmSaveName").addEventListener("click",async()=>{
+  const name=saveFileName.value.trim();
+  if(!name){saveFileName.focus();return;}
+  closeSaveNameDialog();
+  await exportResults(true,name);
+});
+saveFileName.addEventListener("keydown",event=>{
+  if(event.key==="Enter")document.getElementById("confirmSaveName").click();
+  if(event.key==="Escape")closeSaveNameDialog();
+});
+
+function updateSortButton(button,timeframe){
+  const direction=sortDirections[timeframe];
+  button.textContent=direction==="asc"?"↑":"↓";
+  const label="مرتب‌سازی "+(direction==="asc"?"صعودی":"نزولی")+" "+(timeframe==="Min5"?"5m":timeframe==="Min15"?"15m":"1h");
+  button.setAttribute("aria-label",label);
+  button.title=label;
+}
+function sortColumn(timeframe){
+  if(sortBy===timeframe) sortDirections[timeframe]=sortDirections[timeframe]==="asc"?"desc":"asc";
+  sortBy=timeframe;
+  updateSortButton(sort5m,"Min5");
+  updateSortButton(sort15m,"Min15");
+  updateSortButton(sort1h,"Min60");
+  renderRows();
+}
+sort5m.addEventListener("click",()=>sortColumn("Min5"));
+sort15m.addEventListener("click",()=>sortColumn("Min15"));
+sort1h.addEventListener("click",()=>sortColumn("Min60"));
+updateSortButton(sort5m,"Min5");
+updateSortButton(sort15m,"Min15");
+updateSortButton(sort1h,"Min60");
+updateResultsColumns();
 function normalizeNumericInput(value){
   return String(value).trim()
     .replace(/[۰-۹]/g, digit => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
@@ -129,58 +584,101 @@ function normalizeNumericInput(value){
     .replace(/[−–]/g, "-")
     .replace(/٫/g, ".");
 }
-applyFilterButton.addEventListener("click",()=>{
-  const fromText=normalizeNumericInput(filterFrom.value),toText=normalizeNumericInput(filterTo.value);
-  if(fromText===""||toText===""){
-    filterMessage.textContent="لطفاً هر دو مقدار «از» و «تا» را وارد کنید.";
-    return;
-  }
-  const from=Number(fromText),to=Number(toText);
-  if(!Number.isFinite(from)||!Number.isFinite(to)){
-    filterMessage.textContent="هر دو مقدار باید عدد معتبر باشند.";
-    return;
-  }
-  activeRange={min:Math.min(from,to),max:Math.max(from,to)};
-  renderRows();
-});
-clearFilterButton.addEventListener("click",()=>{
-  activeRange=null;filterFrom.value="";filterTo.value="";
-  renderRows();
-});
 function render(job){
-  statusEl.className="status "+(job.status||"");
-  const labels={idle:"آماده بروزرسانی",running:"در حال دریافت داده",completed:"بروزرسانی با موفقیت تمام شد",failed:"بروزرسانی با خطا متوقف شد"};
-  statusEl.lastElementChild.textContent=labels[job.status]||"وضعیت نامشخص";
   const summary=job.summary;
-  button.disabled=job.status==="running";
-  if(summary){
-    document.getElementById("eligible").textContent=fmt(summary.eligibleContracts);
-    document.getElementById("updated").textContent=fmt(summary.updatedContracts);
-    document.getElementById("failed").textContent=fmt(summary.failedContracts);
-    message.textContent="آخرین بروزرسانی: "+new Date(summary.completedAt).toLocaleString("fa-IR");
+  button.disabled=false;
+  button.textContent=job.status==="running"?"لغو بروزرسانی":"بروزرسانی";
+  button.classList.toggle("is-cancel",job.status==="running");
+  button.setAttribute("aria-label",button.textContent);
+  let processed=0,total=0,failed=0;
+  if(job.progress){
+    latestProgress=job.progress;
+    processed=Number(job.progress.processed)||0;
+    total=Number(job.progress.total)||0;
+    failed=Number(job.progress.failed)||0;
+    if(Array.isArray(job.progress.results)){
+      const merged=new Map(latestResults.map(item=>[String(item.timeframe)+"|"+String(item.symbol).toUpperCase(),item]));
+      for(const item of job.progress.results) merged.set(String(item.timeframe)+"|"+String(item.symbol).toUpperCase(),item);
+      latestResults=[...merged.values()];
+      renderRows();
+    }
+  }else if(summary){
+    processed=Number(summary.processedContracts);
+    if(!Number.isFinite(processed)) processed=(Number(summary.updatedContracts)||0)+(Number(summary.failedContracts)||0);
+    total=Number(summary.eligibleContracts)||0;
+    failed=Number(summary.failedContracts)||0;
     latestResults=Array.isArray(summary.results)?summary.results:[];
+    latestProgress=null;
     renderRows();
   }
-  errorEl.textContent=job.error||"";
-  if(job.status==="running") message.textContent="این مرحله ممکن است چند دقیقه طول بکشد. صفحه را باز نگه دارید.";
-  if(job.status==="idle"&&!summary) message.textContent="برای شروع اسکن، دکمه بروزرسانی را بزنید.";
+  const showUpdateStats=job.status==="running"||processed>0||total>0||failed>0;
+  document.querySelector(".progress-details").style.display=showUpdateStats?"flex":"none";
+  message.textContent="پردازش: "+Number(processed).toLocaleString("en-US")+" از "+Number(total).toLocaleString("en-US");
+  errorCount.textContent="خطا: "+Number(failed).toLocaleString("en-US");
+  const percent=total>0?Math.max(0,Math.min(100,processed/total*100)):0;
+  progressFill.style.width=percent+"%";
+  progressTrack.setAttribute("aria-valuenow",String(Math.round(percent)));
+  errorEl.textContent=toEnglishDigits(job.error||"");
 }
+window.localHarsiRender=render;
+function isNativeApp(){return Boolean(window.localHarsiReady||window.localHarsiNative||window.Capacitor?.isNativePlatform?.());}
+const desktopApp=Boolean(window.harsiDesktop);
+if(desktopApp) window.harsiDesktop.onStatus(render);
 async function refreshStatus(){
+  if(desktopApp){
+    try{render(await window.harsiDesktop.getStatus());}
+    catch{message.textContent="ارتباط با برنامه برقرار نشد.";}
+    return;
+  }
+  if(isNativeApp()){
+    if(window.localHarsiBridge) render(window.localHarsiBridge.getStatus());
+    return;
+  }
   try{const response=await fetch("/api/status",{cache:"no-store"});render(await response.json());}
   catch{message.textContent="ارتباط با سرور برقرار نشد. صفحه را دوباره بارگذاری کنید.";}
 }
 
 button.addEventListener("click",async()=>{
-  button.disabled=true;errorEl.textContent="";
+  errorEl.textContent="";
   try{
+    if(desktopApp){
+      const bridge=window.harsiDesktop;
+      if((await bridge.getStatus()).status==="running"){
+        await bridge.cancelNow();
+        return;
+      }
+      if(selectedTimeframes.size===0) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
+      button.disabled=true;
+      render(await bridge.refreshNow([...selectedTimeframes]));
+      return;
+    }
+    if(isNativeApp()){
+      const bridge=await window.localHarsiReady;
+      if(bridge.getStatus().status==="running"){
+        await bridge.cancelNow();
+        return;
+      }
+      if(selectedTimeframes.size===0) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
+      button.disabled=true;
+      render(await bridge.refreshNow([...selectedTimeframes]));
+      return;
+    }
+    button.disabled=true;
     const response=await fetch("/api/refresh",{method:"POST"});
     const data=await response.json();
     if(!response.ok) throw new Error(data.error||"شروع بروزرسانی ناموفق بود.");
     render(data.job);
-  }catch(error){errorEl.textContent=error.message;button.disabled=false;}
+  }catch(error){errorEl.textContent=toEnglishDigits(error.message);button.disabled=false;}finally{
+    // Re-read the authoritative native/desktop status after every scan or cancel.
+    // This prevents a missed final status event from leaving the button in cancel mode.
+    button.disabled=false;
+    await refreshStatus();
+  }
 });
 refreshStatus();
+// Poll all app modes, including Android, as a fallback if a WebView status event is missed.
 setInterval(refreshStatus,3000);
 </script>
+<script type="module" src="./android-app.js"></script>
 </body>
 </html>
