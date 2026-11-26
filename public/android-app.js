@@ -100,6 +100,8 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
           haClose: row.ha_close === null || row.ha_close === undefined ? null : Number(row.ha_close),
           vwapDaily: row.vwap_daily === null || row.vwap_daily === undefined ? null : Number(row.vwap_daily),
           candleClose: row.close_price === null || row.close_price === undefined ? null : Number(row.close_price),
+          previousCandleClose: row.previous_close_price === null || row.previous_close_price === undefined
+            ? null : Number(row.previous_close_price),
           candleOpenTime: row.open_time
         }))
       };
