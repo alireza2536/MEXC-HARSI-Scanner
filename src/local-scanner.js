@@ -26,6 +26,14 @@ const TIMEFRAME_SECONDS = Object.freeze({ Min5: 300, Min15: 900, Min60: 3600 });
 const HISTORY_CANDLES = 2000;
 const PERSISTENCE_BATCH_SIZE = 10;
 
+class IncompleteCandleHistoryError extends Error {
+  constructor(expected, received) {
+    super(`History is incomplete or non-consecutive: expected ${expected} prior candles, received ${received} valid candles`);
+    this.name = "IncompleteCandleHistoryError";
+    this.code = "INCOMPLETE_CANDLE_HISTORY";
+  }
+}
+
 function currentCandleFrom(candles, currentOpen) {
   return candles.find((candle) => Date.parse(candle.open_time) === currentOpen * 1000);
 }
@@ -59,10 +67,13 @@ async function getHistory(store, mexc, symbol, currentOpen, signal, timeframe, c
     .sort((a, b) => Date.parse(a.open_time) - Date.parse(b.open_time))
     .slice(-HISTORY_CANDLES);
 
-  if (historical.length !== HISTORY_CANDLES) {
-    throw new Error(
-      `History is incomplete: expected ${HISTORY_CANDLES} prior candles, received ${historical.length}`
-    );
+  if (!hasCompleteCandleWindow(
+    historical,
+    HISTORY_CANDLES,
+    expectedLastOpen,
+    candleSeconds * 1000
+  )) {
+    throw new IncompleteCandleHistoryError(HISTORY_CANDLES, historical.length);
   }
   await store.upsertCandles(historical, timeframe);
   return { candles: historical, cacheHit: false };
@@ -212,6 +223,19 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
         }
       } catch (error) {
         if (signal?.aborted || error.name === "AbortError") return;
+        if (timeframe === "Min60"
+            && error?.code === "INCOMPLETE_CANDLE_HISTORY"
+            && typeof store.invalidateRollingFourHour === "function") {
+          try {
+            await store.invalidateRollingFourHour(contract.symbol);
+            log("rolling_4h_invalidated_incomplete_history", { symbol: contract.symbol });
+          } catch (invalidationError) {
+            log("rolling_4h_invalidation_failed", {
+              symbol: contract.symbol,
+              error: invalidationError?.message || String(invalidationError)
+            });
+          }
+        }
         failedContracts += 1;
         log("local_contract_failed", { symbol: contract.symbol, error: error.message });
       }
