@@ -208,9 +208,11 @@ for(const row of document.querySelectorAll(".vwap-filter-row")){
     control.addEventListener("click",()=>{
       const selected=control.dataset.vwapCondition;
       vwapConditions[timeframe]=vwapConditions[timeframe]===selected?null:selected;
-      const active=vwapConditions[timeframe]===selected;
-      control.classList.toggle("active",active);
-      control.setAttribute("aria-pressed",String(active));
+      for(const option of row.querySelectorAll("button[data-vwap-condition]")){
+        const active=vwapConditions[timeframe]===option.dataset.vwapCondition;
+        option.classList.toggle("active",active);
+        option.setAttribute("aria-pressed",String(active));
+      }
       renderRows();
     });
   }
