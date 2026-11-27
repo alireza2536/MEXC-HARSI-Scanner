@@ -207,7 +207,7 @@ for(const row of document.querySelectorAll(".vwap-filter-row")){
   for(const control of row.querySelectorAll("button[data-vwap-condition]")){
     control.addEventListener("click",()=>{
       const selected=control.dataset.vwapCondition;
-      vwapConditions[timeframe]=selected;
+      vwapConditions[timeframe]=vwapConditions[timeframe]===selected?null:selected;
       for(const option of row.querySelectorAll("button[data-vwap-condition]")){
         const active=vwapConditions[timeframe]===option.dataset.vwapCondition;
         option.classList.toggle("active",active);
