@@ -194,11 +194,12 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
               remaining: Math.max(total.remaining, Number(item.remaining) || 0),
               updated: total.updated + (Number(item.updated) || 0),
               failed: Math.max(total.failed, Number(item.failed) || 0),
+              skipped: Math.max(total.skipped, Number(item.skipped) || 0),
               errors: [...total.errors, ...(item.errors || [])],
               errorCounts: Object.fromEntries([...new Set([...Object.keys(total.errorCounts), ...Object.keys(item.errorCounts || {})])]
                 .map((key) => [key, (total.errorCounts[key] || 0) + (Number(item.errorCounts?.[key]) || 0)])),
               results: [...total.results, ...(item.results || [])]
-            }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, errors: [], errorCounts: {}, results: [] });
+            }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, skipped: 0, errors: [], errorCounts: {}, results: [] });
             const uniqueErrors = [...new Map(combined.errors.map((item) =>
               [String(item.timeframe) + "|" + String(item.symbol).toUpperCase() + "|" + (item.stage || "scan"), item]
             )).values()];
@@ -230,10 +231,11 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
         // A currency selected in two timeframes is still one eligible currency.
         eligibleContracts: Math.max(0, ...summaries.map((item) => Number(item.eligibleContracts) || 0)),
         processedContracts: Math.max(0, ...summaries.map((item) =>
-          (Number(item.updatedContracts) || 0) + (Number(item.failedContracts) || 0)
+          (Number(item.updatedContracts) || 0) + (Number(item.failedContracts) || 0) + (Number(item.skippedContracts) || 0)
         )),
         updatedContracts: summaries.reduce((sum, item) => sum + item.updatedContracts, 0),
         failedContracts: Math.max(0, ...summaries.map((item) => Number(item.failedContracts) || 0)),
+        skippedContracts: Math.max(0, ...summaries.map((item) => Number(item.skippedContracts) || 0)),
         errors: [...new Map(summaries.flatMap((item) => item.errors || []).map((item) =>
           [String(item.timeframe) + "|" + String(item.symbol).toUpperCase() + "|" + (item.stage || "scan"), item]
         )).values()].slice(0, 100),
