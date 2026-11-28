@@ -11,13 +11,15 @@ const numberFromEnv = (name, fallback) => {
 };
 
 export const config = {
-  mexcBaseUrl: (runtimeEnv.MEXC_BASE_URL || runtimeEnv.VITE_MEXC_BASE_URL || "https://api.mexc.com").replace(/\/$/, ""),
+  // Android and web clients use the isolated allowlisted Render proxy by default.
+  // MEXC_BASE_URL / VITE_MEXC_BASE_URL can still override it for diagnostics.
+  mexcBaseUrl: (runtimeEnv.MEXC_BASE_URL || runtimeEnv.VITE_MEXC_BASE_URL || "https://mexc-harsi-proxy.onrender.com").replace(/\/$/, ""),
   interval: runtimeEnv.TIMEFRAME || "Min15",
   intervalSeconds: 15 * 60,
   maxPrice: numberFromEnv("MAX_PRICE_USDT", numberFromEnv("VITE_MAX_PRICE_USDT", 10)),
   historyDays: numberFromEnv("HISTORY_DAYS", 3),
   requestSpacingMs: numberFromEnv("MEXC_REQUEST_SPACING_MS", 125),
-  requestTimeoutMs: numberFromEnv("MEXC_REQUEST_TIMEOUT_MS", 25000),
+  requestTimeoutMs: numberFromEnv("MEXC_REQUEST_TIMEOUT_MS", 60000),
   upsertBatchSize: numberFromEnv("UPSERT_BATCH_SIZE", 500),
   databaseUrl: runtimeEnv.DATABASE_URL
 };
