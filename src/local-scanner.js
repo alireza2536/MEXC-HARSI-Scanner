@@ -293,7 +293,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
     }
   }
 
-  const concurrency = Math.max(1, Math.min(5, Math.floor(Number(workerCount) || 1)));
+  const concurrency = Math.max(1, Math.min(10, Math.floor(Number(workerCount) || 1)));
   await Promise.all(
     Array.from({ length: Math.min(concurrency, contracts.length) }, () => worker())
   );
