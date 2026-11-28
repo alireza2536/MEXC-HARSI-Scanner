@@ -216,7 +216,9 @@ test("hourly scanner invalidates stale 4h rows when backfilled history is incomp
     mexc, store, maxPrice: 30, nowMs, timeframe: "Min60"
   });
   assert.deepEqual(invalidated, ["GAP_USDT"]);
-  assert.equal(summary.failedContracts, 1);
+  assert.equal(summary.failedContracts, 0);
+  assert.equal(summary.skippedContracts, 1);
+  assert.equal(summary.errorCounts.insufficient_history, 1);
   assert.equal(summary.updatedContracts, 0);
 });
 
