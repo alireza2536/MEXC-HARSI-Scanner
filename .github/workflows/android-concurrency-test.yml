@@ -1,4 +1,4 @@
-name: HARSI Android 10-worker device test
+name: HARSI Android 15-worker device test
 
 on:
   push:
@@ -108,7 +108,7 @@ jobs:
       - name: Upload signed same-app update APK
         uses: actions/upload-artifact@v4
         with:
-          name: harsi-android-update-test-10
+          name: harsi-android-update-test-15
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
