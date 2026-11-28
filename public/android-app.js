@@ -9,7 +9,75 @@ import { createLocalSqliteStore } from "../src/local-sqlite-store.js";
 const DATABASE_NAME = "harsi_local";
 const BackgroundScan = registerPlugin("BackgroundScan");
 
+
 let androidStartupPromise = null;
+
+const scanDiagnostics = {
+  clicks: 0,
+  lastClick: "هنوز کلیکی ثبت نشده",
+  lock: "نامشخص",
+  service: "هنوز فراخوانی نشده",
+  result: "در انتظار"
+};
+
+function updateScanDiagnostics(patch = {}) {
+  Object.assign(scanDiagnostics, patch);
+  const panel = document.getElementById("harsiScanDiagnostics");
+  if (!panel) return;
+  for (const [key, value] of Object.entries({
+    click: scanDiagnostics.lastClick,
+    lock: scanDiagnostics.lock,
+    service: scanDiagnostics.service,
+    result: scanDiagnostics.result
+  })) {
+    const target = panel.querySelector(`[data-diagnostic="${key}"]`);
+    if (target) target.textContent = value;
+  }
+}
+
+function installScanDiagnostics() {
+  if (document.getElementById("harsiScanDiagnostics")) return;
+  const refreshButton = document.getElementById("refresh");
+  if (!refreshButton) return;
+  const panel = document.createElement("details");
+  panel.id = "harsiScanDiagnostics";
+  panel.style.cssText = "margin:10px auto 0;max-width:420px;border:1px solid #354862;border-radius:10px;background:#0b1422;color:#cbd5e1;font:12px Tahoma,Arial,sans-serif;text-align:center;overflow:hidden";
+  const summary = document.createElement("summary");
+  summary.textContent = "گزارش عیب‌یابی اسکن";
+  summary.style.cssText = "padding:10px;cursor:pointer;color:#93c5fd;font-weight:700";
+  panel.append(summary);
+  const rows = [
+    ["click", "آخرین کلیک"],
+    ["lock", "قفل اسکن قبلی"],
+    ["service", "سرویس اندروید"],
+    ["result", "نتیجه"]
+  ];
+  for (const [key, label] of rows) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-top:1px solid #26364d";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const value = document.createElement("strong");
+    value.dataset.diagnostic = key;
+    value.style.cssText = "direction:rtl;text-align:left;overflow-wrap:anywhere;font-weight:500;color:#e5edf8";
+    row.append(name, value);
+    panel.append(row);
+  }
+  const note = document.createElement("p");
+  note.textContent = "این گزارش فقط وضعیت شروع اسکن را ثبت می‌کند و محاسبات اسکن را تغییر نمی‌دهد.";
+  note.style.cssText = "margin:8px;padding:0 8px 6px;color:#94a3b8;line-height:1.7";
+  panel.append(note);
+  const noteAnchor = refreshButton.parentElement?.querySelector(".refresh-note");
+  (noteAnchor || refreshButton).insertAdjacentElement("afterend", panel);
+  refreshButton.addEventListener("click", () => {
+    scanDiagnostics.clicks += 1;
+    updateScanDiagnostics({
+      lastClick: `دریافت شد (شماره ${scanDiagnostics.clicks})`,
+      result: "در حال بررسی"
+    });
+  }, true);
+  updateScanDiagnostics();
+}
 
 export function startAndroidLocalApp(options = {}) {
   // Capacitor can re-enter the app bootstrap after a WebView reload. Reuse
@@ -295,7 +363,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
         // Always close the foreground service, including scan failures and
         // unexpected exceptions. A failed coin is already logged by the worker
         // and does not prevent the remaining contracts from being processed.
-        if (serviceStarted) await BackgroundScan.stop().catch(() => {});
+        if (serviceStarted) {\n          await BackgroundScan.stop().then(() => updateScanDiagnostics({ service: "فرمان توقف ارسال شد" })).catch((error) => updateScanDiagnostics({ service: "خطا هنگام توقف: " + (error?.message || String(error)) }));\n        }
         // Publish once more after the native foreground service has stopped.
         // This final authoritative event prevents the UI cancel label from
         // remaining visible if the WebView missed the scan-completion event.
