@@ -1,0 +1,30 @@
+name: HARSI worker concurrency benchmark
+
+on:
+  push:
+    branches:
+      - benchmark/worker-concurrency
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Run existing automated tests
+        run: npm test
+      - name: Validate application build
+        run: npm run build
+      - name: Benchmark Min60 scan concurrency
+        run: npm run benchmark:scan
