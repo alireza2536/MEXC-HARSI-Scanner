@@ -154,12 +154,30 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       const requestLimiter = createMexcRequestLimiter();
       const dailyVwapCache = new Map();
       const progressByTimeframe = new Map();
+      const sharedMexc = new MexcClient({ signal: controller.signal, requestLimiter });
+
+      // Report the preparation stage immediately, then fetch server time and the
+      // eligible market universe once for every selected timeframe.
+      currentProgress = { stage: "preparing", processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, results: [] };
+      publish();
+      const serverNowMs = await sharedMexc.getServerTimeMs();
+      if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+      const eligibleContracts = await sharedMexc.getEligibleUsdtContracts(config.maxPrice);
+      if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+      currentProgress = {
+        stage: "scanning", processed: 0, total: eligibleContracts.length,
+        remaining: eligibleContracts.length, updated: 0, failed: 0, results: []
+      };
+      publish();
+
       const outcomes = await Promise.allSettled(timeframes.map(async (timeframe) => {
         if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
         return runLocalHarsiScan({
-          mexc: new MexcClient({ signal: controller.signal, requestLimiter }),
+          mexc: sharedMexc,
           store,
           maxPrice: config.maxPrice,
+          nowMs: serverNowMs,
+          eligibleContracts,
           signal: controller.signal,
           timeframe,
           workerCount: timeframes.length > 1 ? 3 : 5,
@@ -178,7 +196,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
               failed: Math.max(total.failed, Number(item.failed) || 0),
               results: [...total.results, ...(item.results || [])]
             }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, results: [] });
-            currentProgress = { ...combined, timeframes: [...progressByTimeframe.keys()] };
+            currentProgress = { stage: "scanning", ...combined, timeframes: [...progressByTimeframe.keys()] };
             onStatus?.(getStatus());
             if (progress.processed === 1 || progress.processed % 5 === 0 || progress.processed === progress.total) {
               void BackgroundScan.update({
