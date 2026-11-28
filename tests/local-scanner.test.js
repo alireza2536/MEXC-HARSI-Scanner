@@ -258,7 +258,9 @@ test("hourly scanner preserves 4h rows when available history is below HARSI war
     mexc, store, maxPrice: 30, nowMs, timeframe: "Min60"
   });
   assert.deepEqual(invalidated, []);
-  assert.equal(summary.failedContracts, 1);
+  assert.equal(summary.failedContracts, 0);
+  assert.equal(summary.skippedContracts, 1);
+  assert.equal(summary.errorCounts.insufficient_history, 1);
 });
 
 test("hourly scanner does not invalidate 4h rows for a temporary MEXC network error", async () => {
