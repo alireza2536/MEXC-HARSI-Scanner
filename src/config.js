@@ -11,7 +11,7 @@ const numberFromEnv = (name, fallback) => {
 };
 
 export const config = {
-  mexcBaseUrl: (runtimeEnv.MEXC_BASE_URL || runtimeEnv.VITE_MEXC_BASE_URL || "https://contract.mexc.com").replace(/\/$/, ""),
+  mexcBaseUrl: (runtimeEnv.MEXC_BASE_URL || runtimeEnv.VITE_MEXC_BASE_URL || "https://api.mexc.com").replace(/\/$/, ""),
   interval: runtimeEnv.TIMEFRAME || "Min15",
   intervalSeconds: 15 * 60,
   maxPrice: numberFromEnv("MAX_PRICE_USDT", numberFromEnv("VITE_MAX_PRICE_USDT", 10)),
