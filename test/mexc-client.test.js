@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MexcClient } from "../src/mexc-client.js";
+import { config } from "../src/config.js";
 
 test("concurrent MEXC requests reserve spaced start times", async () => {
   const originalFetch = globalThis.fetch;
@@ -25,7 +26,7 @@ test("concurrent MEXC requests reserve spaced start times", async () => {
     assert.equal(starts.length, 4);
     for (let index = 1; index < starts.length; index += 1) {
       assert.ok(
-        starts[index] - starts[index - 1] >= 110,
+        starts[index] - starts[index - 1] >= config.requestSpacingMs - 10,
         `request ${index + 1} started only ${starts[index] - starts[index - 1]}ms after the prior request`
       );
     }
@@ -61,7 +62,7 @@ test("separate timeframe clients share one aggregate MEXC request limiter", asyn
     assert.equal(starts.length, 4);
     for (let index = 1; index < starts.length; index += 1) {
       assert.ok(
-        starts[index] - starts[index - 1] >= 110,
+        starts[index] - starts[index - 1] >= config.requestSpacingMs - 10,
         `shared request ${index + 1} started only ${starts[index] - starts[index - 1]}ms after the prior request`
       );
     }
@@ -147,6 +148,45 @@ test("server-time ping still reports non-timeout errors", async () => {
   try {
     const client = new MexcClient();
     await assert.rejects(client.getServerTimeMs(), /Network unavailable/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+
+test("MEXC API-level rate-limit responses trigger a shared cooldown and retry", async () => {
+  const originalFetch = globalThis.fetch;
+  const starts = [];
+  let attempts = 0;
+  globalThis.fetch = async () => {
+    starts.push(Date.now());
+    attempts += 1;
+    return {
+      ok: true,
+      json: async () => attempts === 1
+        ? { success: false, code: 500, message: "Requests are too frequent, please try again later" }
+        : { success: true, data: { time: [], open: [], high: [], low: [], close: [], vol: [], amount: [] } }
+    };
+  };
+
+  try {
+    const { createMexcRequestLimiter } = await import("../src/mexc-client.js");
+    const sharedLimiter = createMexcRequestLimiter();
+    const firstClient = new MexcClient({ requestLimiter: sharedLimiter });
+    const secondClient = new MexcClient({ requestLimiter: sharedLimiter });
+
+    const result = await firstClient.getCandles("TEST_USDT", "Min60", 1_800_000_000, 1_800_003_600);
+    assert.deepEqual(result, []);
+    assert.equal(attempts, 2);
+    assert.ok(
+      starts[1] - starts[0] >= 1900,
+      `retry started only ${starts[1] - starts[0]}ms after MEXC rate-limit response`
+    );
+
+    // A second client uses the same limiter and therefore inherits the
+    // reserved spacing/cooldown state rather than maintaining a private queue.
+    await secondClient.getCandles("TEST_USDT", "Min60", 1_800_000_000, 1_800_003_600);
+    assert.equal(attempts, 3);
   } finally {
     globalThis.fetch = originalFetch;
   }

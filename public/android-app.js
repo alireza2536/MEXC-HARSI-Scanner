@@ -9,7 +9,75 @@ import { createLocalSqliteStore } from "../src/local-sqlite-store.js";
 const DATABASE_NAME = "harsi_local";
 const BackgroundScan = registerPlugin("BackgroundScan");
 
+
 let androidStartupPromise = null;
+
+const scanDiagnostics = {
+  clicks: 0,
+  lastClick: "هنوز کلیکی ثبت نشده",
+  lock: "نامشخص",
+  service: "هنوز فراخوانی نشده",
+  result: "در انتظار"
+};
+
+function updateScanDiagnostics(patch = {}) {
+  Object.assign(scanDiagnostics, patch);
+  const panel = document.getElementById("harsiScanDiagnostics");
+  if (!panel) return;
+  for (const [key, value] of Object.entries({
+    click: scanDiagnostics.lastClick,
+    lock: scanDiagnostics.lock,
+    service: scanDiagnostics.service,
+    result: scanDiagnostics.result
+  })) {
+    const target = panel.querySelector(`[data-diagnostic="${key}"]`);
+    if (target) target.textContent = value;
+  }
+}
+
+function installScanDiagnostics() {
+  if (document.getElementById("harsiScanDiagnostics")) return;
+  const refreshButton = document.getElementById("refresh");
+  if (!refreshButton) return;
+  const panel = document.createElement("details");
+  panel.id = "harsiScanDiagnostics";
+  panel.style.cssText = "margin:10px auto 0;max-width:420px;border:1px solid #354862;border-radius:10px;background:#0b1422;color:#cbd5e1;font:12px Tahoma,Arial,sans-serif;text-align:center;overflow:hidden";
+  const summary = document.createElement("summary");
+  summary.textContent = "گزارش عیب‌یابی اسکن";
+  summary.style.cssText = "padding:10px;cursor:pointer;color:#93c5fd;font-weight:700";
+  panel.append(summary);
+  const rows = [
+    ["click", "آخرین کلیک"],
+    ["lock", "قفل اسکن قبلی"],
+    ["service", "سرویس اندروید"],
+    ["result", "نتیجه"]
+  ];
+  for (const [key, label] of rows) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-top:1px solid #26364d";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const value = document.createElement("strong");
+    value.dataset.diagnostic = key;
+    value.style.cssText = "direction:rtl;text-align:left;overflow-wrap:anywhere;font-weight:500;color:#e5edf8";
+    row.append(name, value);
+    panel.append(row);
+  }
+  const note = document.createElement("p");
+  note.textContent = "این گزارش فقط وضعیت شروع اسکن را ثبت می‌کند و محاسبات اسکن را تغییر نمی‌دهد.";
+  note.style.cssText = "margin:8px;padding:0 8px 6px;color:#94a3b8;line-height:1.7";
+  panel.append(note);
+  const noteAnchor = refreshButton.parentElement?.querySelector(".refresh-note");
+  (noteAnchor || refreshButton).insertAdjacentElement("afterend", panel);
+  refreshButton.addEventListener("click", () => {
+    scanDiagnostics.clicks += 1;
+    updateScanDiagnostics({
+      lastClick: `دریافت شد (شماره ${scanDiagnostics.clicks})`,
+      result: "در حال بررسی"
+    });
+  }, true);
+  updateScanDiagnostics();
+}
 
 export function startAndroidLocalApp(options = {}) {
   // Capacitor can re-enter the app bootstrap after a WebView reload. Reuse
@@ -24,6 +92,7 @@ export function startAndroidLocalApp(options = {}) {
 }
 
 async function startAndroidLocalAppOnce({ onStatus } = {}) {
+  installScanDiagnostics();
   if (!Capacitor.isNativePlatform()) {
     throw new Error("Local SQLite mode is available only inside the Android app.");
   }
@@ -142,7 +211,10 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
   }
 
   async function runScan(timeframes) {
-    if (running) return;
+    if (running) {
+      updateScanDiagnostics({ lock: "فعال؛ اجرای دوباره مسدود شد", result: "قفل داخلی مانع شروع شد" });
+      return;
+    }
     running = true;
     controller = new AbortController();
     activeJob = "running";
@@ -158,7 +230,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
 
       // Report the preparation stage immediately, then fetch server time and the
       // eligible market universe once for every selected timeframe.
-      currentProgress = { stage: "preparing", processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, results: [] };
+      currentProgress = { stage: "preparing", processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, errors: [], errorCounts: {}, results: [] };
       publish();
       const serverNowMs = await sharedMexc.getServerTimeMs();
       if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
@@ -166,7 +238,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
       currentProgress = {
         stage: "scanning", processed: 0, total: eligibleContracts.length,
-        remaining: eligibleContracts.length, updated: 0, failed: 0, results: []
+        remaining: eligibleContracts.length, updated: 0, failed: 0, errors: [], errorCounts: {}, results: []
       };
       publish();
 
@@ -180,7 +252,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
           eligibleContracts,
           signal: controller.signal,
           timeframe,
-          workerCount: timeframes.length > 1 ? 3 : 5,
+          workerCount: timeframes.length > 1 ? 3 : 25,
           dailyVwapCache,
           onProgress: (progress) => {
             if (controller?.signal.aborted) return;
@@ -194,9 +266,16 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
               remaining: Math.max(total.remaining, Number(item.remaining) || 0),
               updated: total.updated + (Number(item.updated) || 0),
               failed: Math.max(total.failed, Number(item.failed) || 0),
+              skipped: Math.max(total.skipped, Number(item.skipped) || 0),
+              errors: [...total.errors, ...(item.errors || [])],
+              errorCounts: Object.fromEntries([...new Set([...Object.keys(total.errorCounts), ...Object.keys(item.errorCounts || {})])]
+                .map((key) => [key, (total.errorCounts[key] || 0) + (Number(item.errorCounts?.[key]) || 0)])),
               results: [...total.results, ...(item.results || [])]
-            }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, results: [] });
-            currentProgress = { stage: "scanning", ...combined, timeframes: [...progressByTimeframe.keys()] };
+            }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, skipped: 0, errors: [], errorCounts: {}, results: [] });
+            const uniqueErrors = [...new Map(combined.errors.map((item) =>
+              [String(item.timeframe) + "|" + String(item.symbol).toUpperCase() + "|" + (item.stage || "scan"), item]
+            )).values()];
+            currentProgress = { stage: "scanning", ...combined, errors: uniqueErrors, timeframes: [...progressByTimeframe.keys()] };
             onStatus?.(getStatus());
             if (progress.processed === 1 || progress.processed % 5 === 0 || progress.processed === progress.total) {
               void BackgroundScan.update({
@@ -224,10 +303,20 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
         // A currency selected in two timeframes is still one eligible currency.
         eligibleContracts: Math.max(0, ...summaries.map((item) => Number(item.eligibleContracts) || 0)),
         processedContracts: Math.max(0, ...summaries.map((item) =>
-          (Number(item.updatedContracts) || 0) + (Number(item.failedContracts) || 0)
+          (Number(item.updatedContracts) || 0) + (Number(item.failedContracts) || 0) + (Number(item.skippedContracts) || 0)
         )),
         updatedContracts: summaries.reduce((sum, item) => sum + item.updatedContracts, 0),
         failedContracts: Math.max(0, ...summaries.map((item) => Number(item.failedContracts) || 0)),
+        skippedContracts: Math.max(0, ...summaries.map((item) => Number(item.skippedContracts) || 0)),
+        errors: [...new Map(summaries.flatMap((item) => item.errors || []).map((item) =>
+          [String(item.timeframe) + "|" + String(item.symbol).toUpperCase() + "|" + (item.stage || "scan"), item]
+        )).values()].slice(0, 100),
+        errorCounts: summaries.reduce((counts, item) => {
+          for (const [category, count] of Object.entries(item.errorCounts || {})) {
+            counts[category] = (counts[category] || 0) + (Number(count) || 0);
+          }
+          return counts;
+        }, {}),
         completedAt: new Date().toISOString(),
         results: [...mergedResults.values()]
       };
@@ -245,6 +334,10 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
     } finally {
       running = false;
       controller = null;
+      updateScanDiagnostics({
+        lock: "آزاد؛ اسکن قبلی پایان یافته",
+        result: activeJob === "completed" ? "اسکن کامل شد" : activeJob === "paused" ? "اسکن متوقف شد" : lastError || "اسکن ناموفق بود"
+      });
       publish();
     }
   }
@@ -258,7 +351,11 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       return getStatus();
     },
     async refreshNow(timeframes = ["Min15"]) {
-      if (running) return getStatus();
+      updateScanDiagnostics({ lock: running ? "فعال؛ شروع جدید مسدود شد" : "آزاد؛ اجازه شروع دارد", result: "در حال بررسی درخواست" });
+      if (running) {
+        updateScanDiagnostics({ result: "درخواست به‌علت قفل اسکن قبلی اجرا نشد" });
+        return getStatus();
+      }
       const selected = [...new Set(timeframes)].filter((value) => ["Min5", "Min15", "Min60"].includes(value));
       if (!selected.length) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
       // Notification permission is optional: Android can still run a foreground
@@ -270,15 +367,27 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       }
       let serviceStarted = false;
       try {
+        updateScanDiagnostics({ service: "در حال ارسال فرمان شروع" });
         await BackgroundScan.start();
         serviceStarted = true;
+        updateScanDiagnostics({ service: "فرمان شروع با موفقیت ارسال شد", result: "اسکن در حال آغاز" });
         await runScan(selected);
         return getStatus();
+      } catch (error) {
+        updateScanDiagnostics({
+          service: serviceStarted ? "سرویس شروع شد؛ خطا هنگام اسکن" : "شروع سرویس ناموفق: " + (error?.message || String(error)),
+          result: error?.message || String(error)
+        });
+        throw error;
       } finally {
         // Always close the foreground service, including scan failures and
         // unexpected exceptions. A failed coin is already logged by the worker
         // and does not prevent the remaining contracts from being processed.
-        if (serviceStarted) await BackgroundScan.stop().catch(() => {});
+        if (serviceStarted) {
+          await BackgroundScan.stop()
+            .then(() => updateScanDiagnostics({ service: "فرمان توقف ارسال شد" }))
+            .catch((error) => updateScanDiagnostics({ service: "خطا هنگام توقف: " + (error?.message || String(error)) }));
+        }
         // Publish once more after the native foreground service has stopped.
         // This final authoritative event prevents the UI cancel label from
         // remaining visible if the WebView missed the scan-completion event.

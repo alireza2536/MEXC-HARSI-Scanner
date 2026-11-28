@@ -12,7 +12,8 @@
     "scan": "node --env-file-if-exists=.env.local --env-file-if-exists=.env src/scanner.js",
     "test": "node --test",
     "android:add": "cap add android",
-    "android:sync": "cap sync android"
+    "android:sync": "cap sync android",
+    "benchmark:scan": "node scripts/benchmark-scan-concurrency.js"
   },
   "dependencies": {
     "pg": "^8.16.3",

@@ -1,4 +1,4 @@
-import { calculateHarsi } from "./harsi.js";
+import { calculateHarsi, HARSI_LENGTH } from "./harsi.js";
 import {
   getMissingCandleRanges,
   hasCompleteCandleWindow,
@@ -28,15 +28,35 @@ export async function getSharedDailyVwap({ mexc, symbol, timeframe, candles, ser
 
 const TIMEFRAME_SECONDS = Object.freeze({ Min5: 300, Min15: 900, Min60: 3600 });
 const HISTORY_CANDLES = 2000;
+// RSI(200) needs 200 consecutive prior candles plus the current candle.
+const MIN_HARSI_HISTORY_CANDLES = HARSI_LENGTH;
 const PERSISTENCE_BATCH_SIZE = 10;
 
 class IncompleteCandleHistoryError extends Error {
   constructor(expected, received, rollingWindowInvalid = false) {
-    super(`History is incomplete or non-consecutive: expected ${expected} prior candles, received ${received} valid candles`);
+    super(`History is incomplete or non-consecutive: expected at least ${expected} consecutive prior candles for HARSI, received ${received} valid candles`);
     this.name = "IncompleteCandleHistoryError";
     this.code = "INCOMPLETE_CANDLE_HISTORY";
     this.rollingWindowInvalid = rollingWindowInvalid;
   }
+}
+
+function getConsecutiveCandleTail(candles, expectedLastOpenTime, intervalMs) {
+  const ordered = [...candles]
+    .filter((candle) => Number.isFinite(Date.parse(candle.open_time)))
+    .sort((left, right) => Date.parse(left.open_time) - Date.parse(right.open_time));
+  if (ordered.length === 0) return [];
+
+  let startIndex = ordered.length - 1;
+  if (Date.parse(ordered[startIndex].open_time) !== expectedLastOpenTime) return [];
+
+  while (startIndex > 0) {
+    const currentTime = Date.parse(ordered[startIndex].open_time);
+    const previousTime = Date.parse(ordered[startIndex - 1].open_time);
+    if (currentTime - previousTime !== intervalMs) break;
+    startIndex -= 1;
+  }
+  return ordered.slice(startIndex);
 }
 
 function currentCandleFrom(candles, currentOpen) {
@@ -54,6 +74,19 @@ function hasValidOhlc(candle) {
 
 function log(event, details = {}) {
   console.info(JSON.stringify({ at: new Date().toISOString(), event, ...details }));
+}
+
+function classifyScanError(error) {
+  const message = String(error?.message || error || "Unknown error");
+  const code = String(error?.code || "");
+  if (code === "INCOMPLETE_CANDLE_HISTORY") return "insufficient_history";
+  if (/HTTP\s*(?:429|510)|rate.?limit|too many requests|频率/i.test(message)) return "mexc_limit";
+  if (/timed?\s*out|timeout|ETIMEDOUT/i.test(message)) return "timeout";
+  if (/network|fetch failed|failed to fetch|ECONN|ENOTFOUND|socket|internet/i.test(message)) return "network";
+  if (/INCOMPLETE_CANDLE_HISTORY|INVALID_ROLLING_4H_WINDOW|did not return|not ready|OHLC|invalid response/i.test(code + " " + message)) return "invalid_data";
+  if (/database|sqlite|SQLITE|storage|persist/i.test(message)) return "storage";
+  if (/MEXC (?:HTTP|API)|request failed/i.test(message)) return "mexc_api";
+  return "other";
 }
 
 export async function getLocalHistoricalCandles(store, mexc, symbol, currentOpen, signal, timeframe, candleSeconds) {
@@ -93,15 +126,18 @@ export async function getLocalHistoricalCandles(store, mexc, symbol, currentOpen
   }
 
   const merged = mergeCandleHistory(cached, downloaded, HISTORY_CANDLES);
-  if (!hasCompleteCandleWindow(merged, HISTORY_CANDLES, expectedLastOpen, intervalMs)) {
-    const latestEight = merged.slice(-8);
+  // A full 2,000-candle warmup is preferred, but HARSI RSI(200) only
+  // requires 200 consecutive prior candles. Use the latest uninterrupted run.
+  const consecutiveHistory = getConsecutiveCandleTail(merged, expectedLastOpen, intervalMs);
+  if (consecutiveHistory.length < MIN_HARSI_HISTORY_CANDLES) {
+    const latestEight = consecutiveHistory.slice(-8);
     const rollingWindowInvalid = timeframe === "Min60" && (
       !hasCompleteCandleWindow(latestEight, 8, expectedLastOpen, intervalMs)
       || aggregateRollingFourHourCandles(latestEight).length !== 2
     );
     throw new IncompleteCandleHistoryError(
-      HISTORY_CANDLES,
-      merged.length,
+      MIN_HARSI_HISTORY_CANDLES,
+      consecutiveHistory.length,
       rollingWindowInvalid
     );
   }
@@ -110,7 +146,7 @@ export async function getLocalHistoricalCandles(store, mexc, symbol, currentOpen
   const newCandles = merged.filter((candle) => !cachedOpenTimes.has(candle.open_time));
   if (newCandles.length > 0) await store.upsertCandles(newCandles, timeframe);
 
-  return { candles: merged, cacheHit: downloaded.length === 0 };
+  return { candles: consecutiveHistory, cacheHit: downloaded.length === 0 };
 }
 
 /**
@@ -152,6 +188,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
     timeframe,
     eligibleContracts: contracts.length,
     historicalCandles: HISTORY_CANDLES,
+    minimumHarsiHistoryCandles: MIN_HARSI_HISTORY_CANDLES,
     currentCandleOpen: currentOpen
   });
 
@@ -159,8 +196,17 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
   let historyCacheHits = 0;
   let historyBackfills = 0;
   let failedContracts = 0;
+  let skippedContracts = 0;
   let updatedContracts = 0;
   let processedContracts = 0;
+  const errors = [];
+  const errorCounts = Object.create(null);
+  function recordError(symbol, error, stage = "scan") {
+    const message = String(error?.message || error || "Unknown error");
+    const category = stage === "storage" ? "storage" : classifyScanError(error);
+    errorCounts[category] = (errorCounts[category] || 0) + 1;
+    if (errors.length < 100) errors.push({ symbol, timeframe, category, message, stage });
+  }
   const pending = [];
   const results = [];
   let persistQueue = Promise.resolve();
@@ -173,6 +219,9 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
       remaining: Math.max(0, contracts.length - processedContracts),
       updated: updatedContracts,
       failed: failedContracts,
+      skipped: skippedContracts,
+      errors: errors.slice(),
+      errorCounts: { ...errorCounts },
       symbol,
       results: results.slice()
     });
@@ -211,8 +260,10 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
       } catch (error) {
         failedContracts += batch.length;
         for (const item of batch) {
+          recordError(item.contract.symbol, error, "storage");
           log("local_persistence_failed", { symbol: item.contract.symbol, error: error.message });
         }
+        publishProgress(null);
       }
     });
     return persistQueue;
@@ -285,7 +336,14 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
             });
           }
         }
-        failedContracts += 1;
+        if (error?.code === "INCOMPLETE_CANDLE_HISTORY") {
+          skippedContracts += 1;
+          recordError(contract.symbol, error);
+          log("local_contract_skipped_insufficient_history", { symbol: contract.symbol, timeframe, available: Number(/received (\\d+)/i.exec(error.message)?.[1]) || 0 });
+        } else {
+          failedContracts += 1;
+          recordError(contract.symbol, error);
+        }
         log("local_contract_failed", { symbol: contract.symbol, error: error.message });
       }
       processedContracts += 1;
@@ -293,7 +351,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
     }
   }
 
-  const concurrency = Math.max(1, Math.min(5, Math.floor(Number(workerCount) || 1)));
+  const concurrency = Math.max(1, Math.min(25, Math.floor(Number(workerCount) || 1)));
   await Promise.all(
     Array.from({ length: Math.min(concurrency, contracts.length) }, () => worker())
   );
@@ -318,6 +376,9 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
     eligibleContracts: contracts.length,
     updatedContracts,
     failedContracts,
+    skippedContracts,
+    errors,
+    errorCounts: { ...errorCounts },
     historyCacheHits,
     historyBackfills,
     candleOpenTime: new Date(currentOpen * 1000).toISOString(),

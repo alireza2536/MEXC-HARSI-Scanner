@@ -1,4 +1,4 @@
-const HARSI_LENGTH = 200;
+export const HARSI_LENGTH = 200;
 const OPEN_SMOOTHING = 1;
 const CALCULATION_VERSION = "jayrogers-pine-v4-length-200-smoothing-1";
 
