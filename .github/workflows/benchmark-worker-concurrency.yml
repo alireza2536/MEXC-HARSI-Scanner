@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - benchmark/worker-concurrency
+      - benchmark/request-spacing-100ms
   workflow_dispatch:
 
 permissions:
