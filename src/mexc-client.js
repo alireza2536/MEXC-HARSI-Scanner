@@ -96,9 +96,25 @@ export function createMexcRequestLimiter() {
 }
 
 export class MexcClient {
-  constructor({ signal, requestLimiter } = {}) {
+  constructor({ signal, requestLimiter, onRequestStatus } = {}) {
     this.signal = signal;
     this.waitForRequestSlot = requestLimiter || createMexcRequestLimiter();
+    this.onRequestStatus = typeof onRequestStatus === "function" ? onRequestStatus : null;
+  }
+
+  #reportRequest(path, state, details = {}) {
+    if (!this.onRequestStatus) return;
+    const labels = {
+      "/api/v1/contract/ping": "دریافت ساعت سرور (Ping)",
+      "/api/v1/contract/detail": "دریافت فهرست قراردادها",
+      "/api/v1/contract/ticker": "دریافت قیمت‌های بازار"
+    };
+    this.onRequestStatus({
+      path,
+      label: labels[path] || "دریافت اطلاعات کندل‌ها",
+      state,
+      ...details
+    });
   }
 
   async #waitForRequestSlot() {
@@ -113,7 +129,10 @@ export class MexcClient {
 
     const timeoutMs = Math.max(1000, Number(requestedTimeoutMs ?? config.requestTimeoutMs) || 25000);
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      this.#reportRequest(path, "waiting", { attempt: attempt + 1 });
       await this.#waitForRequestSlot();
+      const startedAt = Date.now();
+      this.#reportRequest(path, "requesting", { attempt: attempt + 1 });
       const timeoutSignal = AbortSignal.timeout(timeoutMs);
       const requestSignal = this.signal
         ? AbortSignal.any([this.signal, timeoutSignal])
@@ -147,6 +166,7 @@ export class MexcClient {
           }
           throw new Error(`MEXC API error for ${path}: ${apiMessage}`);
         }
+        this.#reportRequest(path, "success", { attempt: attempt + 1, durationMs: Date.now() - startedAt });
         return body?.data;
       } catch (error) {
         if (this.signal?.aborted) {
@@ -154,13 +174,17 @@ export class MexcClient {
         }
         if (timeoutSignal.aborted) {
           if (attempt < maxAttempts - 1) {
+            this.#reportRequest(path, "retrying", { attempt: attempt + 1, durationMs: Date.now() - startedAt, error: "Timeout" });
             // MEXC endpoints can occasionally stall even when connectivity is
             // available. Retry timed-out requests with a short bounded backoff.
             await sleep(750 * (2 ** attempt));
             continue;
           }
-          throw new Error(`MEXC request timed out after ${timeoutMs} ms for ${path} (${maxAttempts} attempts)`);
+          const timeoutError = new Error(`MEXC request timed out after ${timeoutMs} ms for ${path} (${maxAttempts} attempts)`);
+          this.#reportRequest(path, "failed", { attempt: attempt + 1, durationMs: Date.now() - startedAt, error: timeoutError.message });
+          throw timeoutError;
         }
+        this.#reportRequest(path, "failed", { attempt: attempt + 1, durationMs: Date.now() - startedAt, error: error?.message || String(error) });
         throw error;
       }
     }
@@ -187,8 +211,8 @@ export class MexcClient {
 
   async getEligibleUsdtContracts(maxPrice) {
     const [contractsData, tickerData] = await Promise.all([
-      this.#get("/api/v1/contract/detail"),
-      this.#get("/api/v1/contract/ticker")
+      this.#get("/api/v1/contract/detail", {}, { timeoutMs: 12000, maxAttempts: 2 }),
+      this.#get("/api/v1/contract/ticker", {}, { timeoutMs: 12000, maxAttempts: 2 })
     ]);
 
     const contracts = Array.isArray(contractsData) ? contractsData : [];
