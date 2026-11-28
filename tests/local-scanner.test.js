@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runLocalHarsiScan } from "../src/local-scanner.js";
+import { getLocalHistoricalCandles, runLocalHarsiScan } from "../src/local-scanner.js";
 import { aggregateRollingFourHourCandles } from "../src/vwap.js";
 
 const INTERVAL_SECONDS = 900;
@@ -216,11 +216,13 @@ test("hourly scanner invalidates stale 4h rows when backfilled history is incomp
     mexc, store, maxPrice: 30, nowMs, timeframe: "Min60"
   });
   assert.deepEqual(invalidated, ["GAP_USDT"]);
-  assert.equal(summary.failedContracts, 1);
+  assert.equal(summary.failedContracts, 0);
+  assert.equal(summary.skippedContracts, 1);
+  assert.equal(summary.errorCounts.insufficient_history, 1);
   assert.equal(summary.updatedContracts, 0);
 });
 
-test("hourly scanner preserves 4h rows when older history is short but the latest eight candles are valid", async () => {
+test("hourly scanner preserves 4h rows when available history is below HARSI warmup and latest candles are valid", async () => {
   const currentOpen = Math.floor(CURRENT_OPEN / 3600) * 3600;
   const nowMs = (currentOpen + 60) * 1000;
   const invalidated = [];
@@ -232,8 +234,8 @@ test("hourly scanner preserves 4h rows when older history is short but the lates
     low_price: 99 + index, close_price: 101 + index,
     volume: 10, amount: 100
   });
-  const partialHistory = Array.from({ length: 1999 }, (_, index) =>
-    hourly(currentOpen - (1999 - index) * 3600, index)
+  const partialHistory = Array.from({ length: 101 }, (_, index) =>
+    hourly(currentOpen - (101 - index) * 3600, index)
   );
   const store = {
     async initialize() {},
@@ -256,7 +258,9 @@ test("hourly scanner preserves 4h rows when older history is short but the lates
     mexc, store, maxPrice: 30, nowMs, timeframe: "Min60"
   });
   assert.deepEqual(invalidated, []);
-  assert.equal(summary.failedContracts, 1);
+  assert.equal(summary.failedContracts, 0);
+  assert.equal(summary.skippedContracts, 1);
+  assert.equal(summary.errorCounts.insufficient_history, 1);
 });
 
 test("hourly scanner does not invalidate 4h rows for a temporary MEXC network error", async () => {
@@ -429,4 +433,74 @@ test("rolling 4-hour aggregation rejects missing or non-consecutive hourly candl
     ? { ...candle, close_price: null }
     : candle);
   assert.deepEqual(aggregateRollingFourHourCandles(missingPrice), []);
+});
+
+
+test("HARSI scanner accepts a shorter uninterrupted history when at least 200 prior candles exist", async () => {
+  const symbol = "NEW_LISTING_USDT";
+  const intervalSeconds = 3600;
+  const currentOpen = 1_800_000_000;
+  const expectedLastOpen = currentOpen - intervalSeconds;
+  const history = Array.from({ length: 250 }, (_, index) => {
+    const openSeconds = expectedLastOpen - (249 - index) * intervalSeconds;
+    return {
+      symbol,
+      open_time: new Date(openSeconds * 1000).toISOString(),
+      close_time: new Date((openSeconds + intervalSeconds) * 1000).toISOString(),
+      open_price: 100 + index * 0.1,
+      high_price: 102 + index * 0.1,
+      low_price: 99 + index * 0.1,
+      close_price: 101 + index * 0.1,
+      volume: 10,
+      amount: 100
+    };
+  });
+  const store = {
+    async getHistoricalCandles() { return []; },
+    async upsertCandles() {}
+  };
+  const mexc = {
+    async getCandles(_symbol, timeframe) {
+      assert.equal(timeframe, "Min60");
+      return history;
+    }
+  };
+
+  const result = await getLocalHistoricalCandles(
+    store, mexc, symbol, currentOpen, undefined, "Min60", intervalSeconds
+  );
+  assert.equal(result.candles.length, 250);
+  assert.equal(result.candles.at(-1).open_time, new Date(expectedLastOpen * 1000).toISOString());
+  assert.equal(result.cacheHit, false);
+});
+
+test("HARSI scanner still rejects a new listing with only 101 candles because RSI(200) is not ready", async () => {
+  const symbol = "FIONA_USDT";
+  const intervalSeconds = 3600;
+  const currentOpen = 1_800_000_000;
+  const expectedLastOpen = currentOpen - intervalSeconds;
+  const history = Array.from({ length: 101 }, (_, index) => {
+    const openSeconds = expectedLastOpen - (100 - index) * intervalSeconds;
+    return {
+      symbol,
+      open_time: new Date(openSeconds * 1000).toISOString(),
+      close_time: new Date((openSeconds + intervalSeconds) * 1000).toISOString(),
+      open_price: 100 + index,
+      high_price: 102 + index,
+      low_price: 99 + index,
+      close_price: 101 + index,
+      volume: 10,
+      amount: 100
+    };
+  });
+  const store = {
+    async getHistoricalCandles() { return []; },
+    async upsertCandles() {}
+  };
+  const mexc = { async getCandles() { return history; } };
+
+  await assert.rejects(
+    getLocalHistoricalCandles(store, mexc, symbol, currentOpen, undefined, "Min60", intervalSeconds),
+    /expected at least 200 consecutive prior candles for HARSI, received 101 valid candles/
+  );
 });

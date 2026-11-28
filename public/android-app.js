@@ -158,7 +158,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
 
       // Report the preparation stage immediately, then fetch server time and the
       // eligible market universe once for every selected timeframe.
-      currentProgress = { stage: "preparing", processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, results: [] };
+      currentProgress = { stage: "preparing", processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, errors: [], errorCounts: {}, results: [] };
       publish();
       const serverNowMs = await sharedMexc.getServerTimeMs();
       if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
@@ -166,7 +166,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
       currentProgress = {
         stage: "scanning", processed: 0, total: eligibleContracts.length,
-        remaining: eligibleContracts.length, updated: 0, failed: 0, results: []
+        remaining: eligibleContracts.length, updated: 0, failed: 0, errors: [], errorCounts: {}, results: []
       };
       publish();
 
@@ -180,7 +180,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
           eligibleContracts,
           signal: controller.signal,
           timeframe,
-          workerCount: timeframes.length > 1 ? 3 : 5,
+          workerCount: timeframes.length > 1 ? 3 : 25,
           dailyVwapCache,
           onProgress: (progress) => {
             if (controller?.signal.aborted) return;
@@ -194,9 +194,16 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
               remaining: Math.max(total.remaining, Number(item.remaining) || 0),
               updated: total.updated + (Number(item.updated) || 0),
               failed: Math.max(total.failed, Number(item.failed) || 0),
+              skipped: Math.max(total.skipped, Number(item.skipped) || 0),
+              errors: [...total.errors, ...(item.errors || [])],
+              errorCounts: Object.fromEntries([...new Set([...Object.keys(total.errorCounts), ...Object.keys(item.errorCounts || {})])]
+                .map((key) => [key, (total.errorCounts[key] || 0) + (Number(item.errorCounts?.[key]) || 0)])),
               results: [...total.results, ...(item.results || [])]
-            }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, results: [] });
-            currentProgress = { stage: "scanning", ...combined, timeframes: [...progressByTimeframe.keys()] };
+            }), { processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, skipped: 0, errors: [], errorCounts: {}, results: [] });
+            const uniqueErrors = [...new Map(combined.errors.map((item) =>
+              [String(item.timeframe) + "|" + String(item.symbol).toUpperCase() + "|" + (item.stage || "scan"), item]
+            )).values()];
+            currentProgress = { stage: "scanning", ...combined, errors: uniqueErrors, timeframes: [...progressByTimeframe.keys()] };
             onStatus?.(getStatus());
             if (progress.processed === 1 || progress.processed % 5 === 0 || progress.processed === progress.total) {
               void BackgroundScan.update({
@@ -224,10 +231,20 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
         // A currency selected in two timeframes is still one eligible currency.
         eligibleContracts: Math.max(0, ...summaries.map((item) => Number(item.eligibleContracts) || 0)),
         processedContracts: Math.max(0, ...summaries.map((item) =>
-          (Number(item.updatedContracts) || 0) + (Number(item.failedContracts) || 0)
+          (Number(item.updatedContracts) || 0) + (Number(item.failedContracts) || 0) + (Number(item.skippedContracts) || 0)
         )),
         updatedContracts: summaries.reduce((sum, item) => sum + item.updatedContracts, 0),
         failedContracts: Math.max(0, ...summaries.map((item) => Number(item.failedContracts) || 0)),
+        skippedContracts: Math.max(0, ...summaries.map((item) => Number(item.skippedContracts) || 0)),
+        errors: [...new Map(summaries.flatMap((item) => item.errors || []).map((item) =>
+          [String(item.timeframe) + "|" + String(item.symbol).toUpperCase() + "|" + (item.stage || "scan"), item]
+        )).values()].slice(0, 100),
+        errorCounts: summaries.reduce((counts, item) => {
+          for (const [category, count] of Object.entries(item.errorCounts || {})) {
+            counts[category] = (counts[category] || 0) + (Number(count) || 0);
+          }
+          return counts;
+        }, {}),
         completedAt: new Date().toISOString(),
         results: [...mergedResults.values()]
       };
