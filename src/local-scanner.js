@@ -177,7 +177,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
   const errorCounts = Object.create(null);
   function recordError(symbol, error, stage = "scan") {
     const message = String(error?.message || error || "Unknown error");
-    const category = classifyScanError(error);
+    const category = stage === "storage" ? "storage" : classifyScanError(error);
     errorCounts[category] = (errorCounts[category] || 0) + 1;
     if (errors.length < 100) errors.push({ symbol, timeframe, category, message, stage });
   }
