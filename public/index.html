@@ -34,7 +34,7 @@
     .ha-positive{color:#22c55e;font-weight:700}
     .ha-negative{color:#f87171;font-weight:700}
     .ha-zero{color:#94a3b8;font-weight:700}
-    .results-heading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px}.ha-sort-toggle{width:28px;height:24px;padding:0;margin:0;border-radius:7px;background:#26364d;color:#e5edf8;font-size:19px;line-height:1}
+    .results-heading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px}.results-update-time{color:#94a3b8;font-size:10px;line-height:1.4;direction:ltr;white-space:nowrap;font-weight:400}.ha-sort-toggle{width:28px;height:24px;padding:0;margin:0;border-radius:7px;background:#26364d;color:#e5edf8;font-size:19px;line-height:1}
     .ha-sort-toggle:hover{background:#354862}
     .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;font-size:15px}
     .ha-filter{margin-bottom:16px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
@@ -178,7 +178,7 @@
       </div>
     </div>
     <div class="table-wrap">
-      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col5m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"></colgroup><thead><tr><th>نام ارز</th><th id="heading5m"><div class="results-heading"><span>۵ دقیقه</span><button id="sort5m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 5m" title="مرتب‌سازی نزولی 5m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th></tr></thead>
+      <table id="resultsTable"><colgroup><col id="coinCol" style="width:25%"><col id="col5m" style="width:25%"><col id="col15m" style="width:25%"><col id="col1h" style="width:25%"></colgroup><thead><tr><th>نام ارز</th><th id="heading5m"><div class="results-heading"><span>۵ دقیقه</span><small id="time5m" class="results-update-time">زمان: —</small><button id="sort5m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 5m" title="مرتب‌سازی نزولی 5m">↓</button></div></th><th id="heading15m"><div class="results-heading"><span>۱۵ دقیقه</span><small id="time15m" class="results-update-time">زمان: —</small><button id="sort15m" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 15m" title="مرتب‌سازی نزولی 15m">↓</button></div></th><th id="heading1h"><div class="results-heading"><span>۱ ساعت</span><small id="time1h" class="results-update-time">زمان: —</small><button id="sort1h" class="ha-sort-toggle" type="button" aria-label="مرتب‌سازی نزولی 1h" title="مرتب‌سازی نزولی 1h">↓</button></div></th></tr></thead>
       <tbody id="rows"><tr><td colspan="4" class="muted">هنوز داده‌ای دریافت نشده است.</td></tr></tbody></table>
     </div>
   </section>
@@ -302,6 +302,7 @@ const col5m=document.getElementById("col5m");
 const col15m=document.getElementById("col15m");
 const heading1h=document.getElementById("heading1h");
 const col1h=document.getElementById("col1h");
+const updateTimeLabels={Min5:document.getElementById("time5m"),Min15:document.getElementById("time15m"),Min60:document.getElementById("time1h")};
 
 const filterInputs={
   Min5:{from:document.getElementById("filterFrom5m"),to:document.getElementById("filterTo5m")},
@@ -362,13 +363,18 @@ function groupedResults(){
     const symbol=String(item.symbol||"").trim().toUpperCase().replace(/[_-]?USDT$/i,"").replace(/[_-]/g,"");
     if(!symbol||!["Min5","Min15","Min60","Min240"].includes(item.timeframe)) continue;
     if(!bySymbol.has(symbol)) bySymbol.set(symbol,{
-      symbol,Min5:null,Min15:null,Min60:null,vwapDaily:null,
+      symbol,Min5:null,Min15:null,Min60:null,timeMin5:null,timeMin15:null,timeMin60:null,vwapDaily:null,
       priceMin5:null,priceMin15:null,priceMin60:null,priceMin240:null,
       previousPriceMin5:null,previousPriceMin15:null,previousPriceMin60:null,previousPriceMin240:null,
       vwapMin5:null,vwapMin15:null,vwapMin60:null,vwapMin240:null
     });
     const row=bySymbol.get(symbol);
     const timeframe=item.timeframe;
+    const candleTimestamp=Date.parse(item.candleOpenTime);
+    if(["Min5","Min15","Min60"].includes(timeframe)&&Number.isFinite(candleTimestamp)){
+      const timestampKey="time"+timeframe;
+      if(row[timestampKey]===null||candleTimestamp>row[timestampKey]) row[timestampKey]=candleTimestamp;
+    }
     const value=Number(item.haClose);
     if(item.haClose!==null&&item.haClose!==undefined&&Number.isFinite(value)){
       row[timeframe]=value;
@@ -409,6 +415,27 @@ function updateResultsColumns(){
     sortBy=show5m?"Min5":show15m?"Min15":show1h?"Min60":"Min5";
   }
 }
+function updateResultsUpdateTimes(results){
+  const latestByTimeframe={Min5:null,Min15:null,Min60:null};
+  for(const item of results){
+    for(const timeframe of Object.keys(latestByTimeframe)){
+      const timestamp=item["time"+timeframe];
+      if(Number.isFinite(timestamp)&&(latestByTimeframe[timeframe]===null||timestamp>latestByTimeframe[timeframe])){
+        latestByTimeframe[timeframe]=timestamp;
+      }
+    }
+  }
+  const now=new Date();
+  for(const [timeframe,label] of Object.entries(updateTimeLabels)){
+    const timestamp=latestByTimeframe[timeframe];
+    if(timestamp===null){label.textContent="زمان: —";continue;}
+    const date=new Date(timestamp);
+    const time=date.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",hour12:false});
+    const sameDay=date.getFullYear()===now.getFullYear()&&date.getMonth()===now.getMonth()&&date.getDate()===now.getDate();
+    const day=sameDay?"":date.toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit"})+" ";
+    label.textContent="زمان: "+day+time;
+  }
+}
 function renderRows(){
   updateResultsColumns();
   rows.replaceChildren();
@@ -416,6 +443,7 @@ function renderRows(){
     ? Object.keys(activeRanges)
     : ["Min5","Min15","Min60"].filter(timeframe=>selectedTimeframes.has(timeframe)||filterTimeframes.has(timeframe));
   const all=groupedResults();
+  updateResultsUpdateTimes(all);
   let results=activeRanges
     ? all.filter(item=>visibleTimeframes.every(timeframe=>{
         const range=activeRanges[timeframe],value=item[timeframe];
