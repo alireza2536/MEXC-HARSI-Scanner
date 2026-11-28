@@ -79,6 +79,7 @@ function log(event, details = {}) {
 function classifyScanError(error) {
   const message = String(error?.message || error || "Unknown error");
   const code = String(error?.code || "");
+  if (code === "INCOMPLETE_CANDLE_HISTORY") return "insufficient_history";
   if (/HTTP\s*(?:429|510)|rate.?limit|too many requests|频率/i.test(message)) return "mexc_limit";
   if (/timed?\s*out|timeout|ETIMEDOUT/i.test(message)) return "timeout";
   if (/network|fetch failed|failed to fetch|ECONN|ENOTFOUND|socket|internet/i.test(message)) return "network";
@@ -195,6 +196,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
   let historyCacheHits = 0;
   let historyBackfills = 0;
   let failedContracts = 0;
+  let skippedContracts = 0;
   let updatedContracts = 0;
   let processedContracts = 0;
   const errors = [];
@@ -217,6 +219,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
       remaining: Math.max(0, contracts.length - processedContracts),
       updated: updatedContracts,
       failed: failedContracts,
+      skipped: skippedContracts,
       errors: errors.slice(),
       errorCounts: { ...errorCounts },
       symbol,
@@ -333,8 +336,14 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
             });
           }
         }
-        failedContracts += 1;
-        recordError(contract.symbol, error);
+        if (error?.code === "INCOMPLETE_CANDLE_HISTORY") {
+          skippedContracts += 1;
+          recordError(contract.symbol, error);
+          log("local_contract_skipped_insufficient_history", { symbol: contract.symbol, timeframe, available: Number(/received (\\d+)/i.exec(error.message)?.[1]) || 0 });
+        } else {
+          failedContracts += 1;
+          recordError(contract.symbol, error);
+        }
         log("local_contract_failed", { symbol: contract.symbol, error: error.message });
       }
       processedContracts += 1;
@@ -367,6 +376,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
     eligibleContracts: contracts.length,
     updatedContracts,
     failedContracts,
+    skippedContracts,
     errors,
     errorCounts: { ...errorCounts },
     historyCacheHits,
