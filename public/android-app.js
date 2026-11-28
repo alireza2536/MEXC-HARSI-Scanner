@@ -180,7 +180,7 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
           eligibleContracts,
           signal: controller.signal,
           timeframe,
-          workerCount: timeframes.length > 1 ? 3 : 25,
+          workerCount: timeframes.length > 1 ? 8 : 25,
           dailyVwapCache,
           onProgress: (progress) => {
             if (controller?.signal.aborted) return;
