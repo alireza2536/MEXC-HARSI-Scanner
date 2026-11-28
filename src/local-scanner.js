@@ -117,7 +117,7 @@ export async function getLocalHistoricalCandles(store, mexc, symbol, currentOpen
  * Local scanner. The Android caller owns scan lifecycle and keeps a native
  * foreground service active for the duration of each user-started scan.
  */
-export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgress, signal, timeframe = "Min15", workerCount = 5, dailyVwapCache = new Map() } = {}) {
+export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligibleContracts: suppliedContracts, onProgress, signal, timeframe = "Min15", workerCount = 5, dailyVwapCache = new Map() } = {}) {
   if (!mexc || !store) throw new TypeError("MEXC client and local store are required.");
   if (!Number.isFinite(maxPrice) || maxPrice <= 0) {
     throw new TypeError("The current scanner maxPrice setting must be provided.");
@@ -143,7 +143,9 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
   throwIfAborted();
   const nowSeconds = Math.floor(serverNowMs / 1000);
   const currentOpen = Math.floor(nowSeconds / candleSeconds) * candleSeconds;
-  const contracts = await mexc.getEligibleUsdtContracts(maxPrice);
+  const contracts = Array.isArray(suppliedContracts)
+    ? suppliedContracts
+    : await mexc.getEligibleUsdtContracts(maxPrice);
   throwIfAborted();
 
   log("local_scan_started", {
@@ -214,6 +216,10 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
     });
     return persistQueue;
   }
+
+  // Publish the known market-universe size before the first candle request.
+  // This keeps the UI from appearing frozen at 0/0 during initial processing.
+  publishProgress(null);
 
   async function worker() {
     while (true) {
