@@ -65,7 +65,14 @@ function isRateAllowed(ip) {
 }
 
 function resolveUpstreamPath(url) {
-  const path = url.pathname;
+  // Render/browser clients may normalize or encode the incoming path differently.
+  // Canonicalize it before applying the strict endpoint allowlist.
+  let path;
+  try {
+    path = decodeURIComponent(url.pathname).replace(/\\/{2,}/g, "/").replace(/\\/+$/, "") || "/";
+  } catch {
+    return null;
+  }
   const allowedFixed = new Set([
     "/api/v1/contract/ping",
     "/api/v1/contract/detail",
@@ -183,7 +190,11 @@ const server = http.createServer(async (request, response) => {
 
   const path = resolveUpstreamPath(url);
   if (!path || !validateQuery(url, path)) {
-    return sendJson(response, 400, { error: "MEXC endpoint or query parameters are not allowed." });
+    return sendJson(response, 400, {
+      error: "MEXC endpoint or query parameters are not allowed.",
+      receivedPath: url.pathname,
+      normalizedPath: path || null
+    });
   }
 
   const forwarded = request.headers["x-forwarded-for"]?.split(",")[0]?.trim();
