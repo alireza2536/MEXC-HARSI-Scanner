@@ -152,3 +152,42 @@ test("server-time ping still reports non-timeout errors", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+
+test("MEXC API-level rate-limit responses trigger a shared cooldown and retry", async () => {
+  const originalFetch = globalThis.fetch;
+  const starts = [];
+  let attempts = 0;
+  globalThis.fetch = async () => {
+    starts.push(Date.now());
+    attempts += 1;
+    return {
+      ok: true,
+      json: async () => attempts === 1
+        ? { success: false, code: 500, message: "Requests are too frequent, please try again later" }
+        : { success: true, data: Date.now() }
+    };
+  };
+
+  try {
+    const { createMexcRequestLimiter } = await import("../src/mexc-client.js");
+    const sharedLimiter = createMexcRequestLimiter();
+    const firstClient = new MexcClient({ requestLimiter: sharedLimiter });
+    const secondClient = new MexcClient({ requestLimiter: sharedLimiter });
+
+    const result = await firstClient.getServerTimeMs();
+    assert.ok(Number.isFinite(result));
+    assert.equal(attempts, 2);
+    assert.ok(
+      starts[1] - starts[0] >= 1900,
+      `retry started only ${starts[1] - starts[0]}ms after MEXC rate-limit response`
+    );
+
+    // A second client uses the same limiter and therefore inherits the
+    // reserved spacing/cooldown state rather than maintaining a private queue.
+    await secondClient.getServerTimeMs();
+    assert.equal(attempts, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
