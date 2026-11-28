@@ -1,0 +1,23 @@
+name: Live MEXC three-timeframe 8-worker test
+
+on:
+  push:
+    branches:
+      - benchmark/live-mexc-3tf-8-workers
+
+permissions:
+  contents: read
+
+jobs:
+  live-mexc-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout isolated benchmark branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run controlled live MEXC scan
+        run: node scripts/benchmark-live-mexc-three-timeframes.js
