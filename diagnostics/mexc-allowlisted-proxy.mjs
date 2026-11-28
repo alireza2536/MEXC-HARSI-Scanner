@@ -93,24 +93,25 @@ function validateQuery(url, path) {
       : new Set();
 
   for (const key of url.searchParams.keys()) {
-    if (!allowed.has(key) || url.searchParams.getAll(key).length !== 1) return false;
+    if (!allowed.has(key)) return `Unexpected query parameter: ${key}`;
+    if (url.searchParams.getAll(key).length !== 1) return `Duplicate query parameter: ${key}`;
   }
 
   if (path.endsWith("/ticker")) {
     const symbol = url.searchParams.get("symbol");
-    return symbol === null || /^[A-Z0-9_]{2,40}$/.test(symbol);
+    if (symbol !== null && !/^[A-Z0-9_]{2,40}$/.test(symbol)) return "Invalid ticker symbol";
   }
 
   if (path.includes("/kline/")) {
     const interval = url.searchParams.get("interval");
     const start = Number(url.searchParams.get("start"));
     const end = Number(url.searchParams.get("end"));
-    if (!["Min5", "Min15", "Min60"].includes(interval)) return false;
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) return false;
-    if (start <= 0 || end <= start || end - start > 7 * 24 * 60 * 60) return false;
+    if (!["Min5", "Min15", "Min60"].includes(interval)) return "Invalid kline interval";
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) return "Invalid kline time range";
+    if (start <= 0 || end <= start || end - start > 7 * 24 * 60 * 60) return "Kline range exceeds allowed limits";
   }
 
-  return true;
+  return null;
 }
 
 function cacheKey(path, url) {
@@ -189,11 +190,15 @@ const server = http.createServer(async (request, response) => {
   }
 
   const path = resolveUpstreamPath(url);
-  if (!path || !validateQuery(url, path)) {
+  const queryValidationError = path ? validateQuery(url, path) : "Endpoint path is not allowlisted";
+  if (!path || queryValidationError) {
     return sendJson(response, 400, {
       error: "MEXC endpoint or query parameters are not allowed.",
+      reason: queryValidationError,
+      method: request.method,
       receivedPath: url.pathname,
-      normalizedPath: path || null
+      normalizedPath: path || null,
+      receivedQuery: [...url.searchParams.entries()]
     });
   }
 
