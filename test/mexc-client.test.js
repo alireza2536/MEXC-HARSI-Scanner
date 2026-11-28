@@ -119,10 +119,16 @@ test("MEXC client accepts Min5 and converts five-minute candle close times", asy
 test("server-time ping uses the device clock after a single 8-second timeout", async () => {
   const originalFetch = globalThis.fetch;
   const originalNow = Date.now;
+  const originalTimeout = AbortSignal.timeout;
   const deviceNow = 1_800_000_000_000;
   Date.now = () => deviceNow;
+  AbortSignal.timeout = (ms) => {
+    assert.equal(ms, 8000);
+    const controller = new AbortController();
+    controller.abort(new DOMException("The operation timed out", "TimeoutError"));
+    return controller.signal;
+  };
   globalThis.fetch = async (_url, options) => {
-    assert.equal(options.signal.reason?.name, "TimeoutError");
     throw options.signal.reason;
   };
   try {
@@ -131,6 +137,7 @@ test("server-time ping uses the device clock after a single 8-second timeout", a
   } finally {
     globalThis.fetch = originalFetch;
     Date.now = originalNow;
+    AbortSignal.timeout = originalTimeout;
   }
 });
 
