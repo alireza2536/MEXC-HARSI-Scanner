@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android-apk:
@@ -110,3 +110,22 @@ jobs:
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
+
+
+      - name: Publish stable latest APK release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f latest "$GITHUB_SHA"
+          git push origin refs/tags/latest --force
+          if gh release view latest >/dev/null 2>&1; then
+            gh release edit latest --title "Latest MEXC HARSI Scanner APK" --notes "Automatically updated from the latest successful build on main."
+          else
+            gh release create latest --title "Latest MEXC HARSI Scanner APK" --notes "Automatically updated from the latest successful build on main."
+          fi
+          gh release upload latest "$APK#MEXC-HARSI-Scanner-latest.apk" --clobber
