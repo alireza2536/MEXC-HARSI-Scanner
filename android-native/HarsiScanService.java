@@ -13,6 +13,7 @@ public class HarsiScanService extends Service {
     static final String ACTION_START = "com.personal.harsi.SCAN_START";
     static final String ACTION_UPDATE = "com.personal.harsi.SCAN_UPDATE";
     static final String ACTION_STOP = "com.personal.harsi.SCAN_STOP";
+    static final String ACTION_STOPPED = "com.personal.harsi.SCAN_STOPPED";
     private static final String CHANNEL_ID = "harsi_scan_progress";
     private static final int NOTIFICATION_ID = 4201;
     private PowerManager.WakeLock wakeLock;
@@ -81,6 +82,9 @@ public class HarsiScanService extends Service {
         NotificationManager manager = getSystemService(NotificationManager.class);
         manager.cancel(NOTIFICATION_ID);
         super.onDestroy();
+        Intent stopped = new Intent(ACTION_STOPPED);
+        stopped.setPackage(getPackageName());
+        sendBroadcast(stopped);
     }
 
     @Override
