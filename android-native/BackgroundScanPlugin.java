@@ -112,24 +112,45 @@ public class BackgroundScanPlugin extends Plugin {
 
     @PluginMethod
     public void stop(PluginCall call) {
+        final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        final java.util.concurrent.atomic.AtomicBoolean finished = new java.util.concurrent.atomic.AtomicBoolean(false);
         final android.content.BroadcastReceiver stoppedReceiver = new android.content.BroadcastReceiver() {
             @Override
             public void onReceive(android.content.Context context, Intent intent) {
+                if (!finished.compareAndSet(false, true)) return;
+                handler.removeCallbacksAndMessages(null);
                 try { getContext().unregisterReceiver(this); } catch (Exception ignored) {}
                 call.resolve();
             }
         };
-        IntentFilter filter = new IntentFilter(HarsiScanService.ACTION_STOPPED);
-        if (Build.VERSION.SDK_INT >= 33) {
-            getContext().registerReceiver(stoppedReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            getContext().registerReceiver(stoppedReceiver, filter);
-        }
-        Intent serviceIntent = new Intent(getContext(), HarsiScanService.class);
-        boolean wasRunning = getContext().stopService(serviceIntent);
-        if (!wasRunning) {
+        Runnable timeout = () -> {
+            if (!finished.compareAndSet(false, true)) return;
             try { getContext().unregisterReceiver(stoppedReceiver); } catch (Exception ignored) {}
+            // Never leave the JavaScript refresh lock waiting forever if Android
+            // omits the lifecycle broadcast. stopService has already been issued.
             call.resolve();
+        };
+        IntentFilter filter = new IntentFilter(HarsiScanService.ACTION_STOPPED);
+        try {
+            if (Build.VERSION.SDK_INT >= 33) {
+                getContext().registerReceiver(stoppedReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                getContext().registerReceiver(stoppedReceiver, filter);
+            }
+            handler.postDelayed(timeout, 5000);
+            Intent serviceIntent = new Intent(getContext(), HarsiScanService.class);
+            boolean wasRunning = getContext().stopService(serviceIntent);
+            if (!wasRunning && finished.compareAndSet(false, true)) {
+                handler.removeCallbacks(timeout);
+                try { getContext().unregisterReceiver(stoppedReceiver); } catch (Exception ignored) {}
+                call.resolve();
+            }
+        } catch (Exception error) {
+            handler.removeCallbacks(timeout);
+            if (finished.compareAndSet(false, true)) {
+                try { getContext().unregisterReceiver(stoppedReceiver); } catch (Exception ignored) {}
+                call.reject("توقف سرویس اسکن ناموفق بود: " + error.getMessage(), error);
+            }
         }
     }
 }
