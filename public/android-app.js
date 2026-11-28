@@ -154,11 +154,20 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       const requestLimiter = createMexcRequestLimiter();
       const dailyVwapCache = new Map();
       const progressByTimeframe = new Map();
-      const sharedMexc = new MexcClient({ signal: controller.signal, requestLimiter });
-
-      // Report the preparation stage immediately, then fetch server time and the
-      // eligible market universe once for every selected timeframe.
-      currentProgress = { stage: "preparing", processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, errors: [], errorCounts: {}, results: [] };
+      // Report the preparation stage immediately, then publish each MEXC endpoint
+      // transition so a stalled connection is visible instead of looking like a frozen scan.
+      currentProgress = { stage: "preparing", processed: 0, total: 0, remaining: 0, updated: 0, failed: 0, errors: [], errorCounts: {}, results: [], diagnostics: [] };
+      const sharedMexc = new MexcClient({
+        signal: controller.signal,
+        requestLimiter,
+        onRequestStatus: (event) => {
+          if (!currentProgress) return;
+          const diagnostics = new Map((currentProgress.diagnostics || []).map((item) => [item.path, item]));
+          diagnostics.set(event.path, event);
+          currentProgress = { ...currentProgress, diagnostics: [...diagnostics.values()] };
+          publish();
+        }
+      });
       publish();
       const serverNowMs = await sharedMexc.getServerTimeMs();
       if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
@@ -166,7 +175,8 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       if (controller.signal.aborted) throw new DOMException("Scan was stopped.", "AbortError");
       currentProgress = {
         stage: "scanning", processed: 0, total: eligibleContracts.length,
-        remaining: eligibleContracts.length, updated: 0, failed: 0, errors: [], errorCounts: {}, results: []
+        remaining: eligibleContracts.length, updated: 0, failed: 0, errors: [], errorCounts: {}, results: [],
+        diagnostics: currentProgress?.diagnostics || []
       };
       publish();
 
@@ -264,8 +274,9 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
         } else {
           lastError = error.message || String(error);
         }
-        // Do not leave the UI showing a stale preparation/progress state after failure.
-        currentProgress = null;
+        // Keep endpoint diagnostics visible after a preparation failure.
+        const diagnostics = currentProgress?.diagnostics || [];
+        currentProgress = failedDuringPreparation ? { stage: "failed", diagnostics } : null;
       }
     } finally {
       running = false;
