@@ -1,10 +1,10 @@
 import { performance } from "node:perf_hooks";
 import { runLocalHarsiScan } from "../src/local-scanner.js";
 
-const WORKERS = [5, 7, 8, 10];
+const WORKERS = [10, 15, 25];
+const REQUEST_SPACINGS_MS = [125, 100];
 const REPEATS = 2;
 const CONTRACT_COUNT = 12;
-const REQUEST_SPACING_MS = 125;
 const NETWORK_LATENCY_MS = 20;
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -41,13 +41,13 @@ const contracts = Array.from({ length: CONTRACT_COUNT }, (_, index) => ({
   lastPrice: 1 + index / 100
 }));
 
-function createRateLimitedMockMexc() {
+function createRateLimitedMockMexc(requestSpacingMs) {
   let nextRequestAt = 0;
   let requestCount = 0;
   async function requestSlot() {
     const current = performance.now();
     const slot = Math.max(current, nextRequestAt);
-    nextRequestAt = slot + REQUEST_SPACING_MS;
+    nextRequestAt = slot + requestSpacingMs;
     await sleep(Math.max(0, slot - current));
     requestCount += 1;
     await sleep(NETWORK_LATENCY_MS);
@@ -79,8 +79,8 @@ function createWarmCacheStore() {
   };
 }
 
-async function runOne(workerCount) {
-  const mexc = createRateLimitedMockMexc();
+async function runOne(workerCount, requestSpacingMs) {
+  const mexc = createRateLimitedMockMexc(requestSpacingMs);
   const store = createWarmCacheStore();
   const started = performance.now();
   const summary = await runLocalHarsiScan({
@@ -95,6 +95,7 @@ async function runOne(workerCount) {
   });
   const elapsedMs = performance.now() - started;
   return {
+    requestSpacingMs,
     workerCount,
     elapsedMs: Math.round(elapsedMs),
     contracts: summary.eligibleContracts,
@@ -108,16 +109,18 @@ async function runOne(workerCount) {
 }
 
 const results = [];
-for (let repeat = 1; repeat <= REPEATS; repeat += 1) {
-  for (const workerCount of WORKERS) {
-    const result = await runOne(workerCount);
-    results.push({ repeat, ...result });
-    console.log(JSON.stringify({ event: "benchmark_result", repeat, ...result }));
+for (const requestSpacingMs of REQUEST_SPACINGS_MS) {
+  for (let repeat = 1; repeat <= REPEATS; repeat += 1) {
+    for (const workerCount of WORKERS) {
+      const result = await runOne(workerCount, requestSpacingMs);
+      results.push({ repeat, requestSpacingMs, ...result });
+      console.log(JSON.stringify({ event: "benchmark_result", repeat, requestSpacingMs, ...result }));
+    }
   }
 }
 
-const grouped = WORKERS.map((workerCount) => {
-  const rows = results.filter((item) => item.workerCount === workerCount);
+const grouped = REQUEST_SPACINGS_MS.flatMap((requestSpacingMs) => WORKERS.map((workerCount) => {
+  const rows = results.filter((item) => item.requestSpacingMs === requestSpacingMs && item.workerCount === workerCount);
   const mean = (key) => Math.round(rows.reduce((sum, item) => sum + item[key], 0) / rows.length);
   return {
     workerCount,
@@ -128,7 +131,7 @@ const grouped = WORKERS.map((workerCount) => {
     cacheHits: rows.reduce((sum, item) => sum + item.historyCacheHits, 0),
     backfills: rows.reduce((sum, item) => sum + item.historyBackfills, 0)
   };
-});
+}));
 
 console.log(JSON.stringify({
   event: "benchmark_summary",
@@ -136,7 +139,7 @@ console.log(JSON.stringify({
   timeframe: "Min60",
   repeats: REPEATS,
   contractCount: CONTRACT_COUNT,
-  simulatedRequestSpacingMs: REQUEST_SPACING_MS,
+  testedRequestSpacingMs: REQUEST_SPACINGS_MS,
   simulatedNetworkLatencyMs: NETWORK_LATENCY_MS,
   results: grouped
 }, null, 2));
