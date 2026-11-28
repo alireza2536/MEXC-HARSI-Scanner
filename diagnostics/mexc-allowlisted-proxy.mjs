@@ -69,7 +69,7 @@ function resolveUpstreamPath(url) {
   // Canonicalize it before applying the strict endpoint allowlist.
   let path;
   try {
-    path = decodeURIComponent(url.pathname).replace(/\\/{2,}/g, "/").replace(/\\/+$/, "") || "/";
+    path = "/" + decodeURIComponent(url.pathname).split("/").filter(Boolean).join("/");
   } catch {
     return null;
   }
