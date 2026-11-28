@@ -5,6 +5,7 @@ on:
     branches:
       - benchmark/worker-concurrency
       - benchmark/request-spacing-100ms
+      - benchmark/error-diagnostics
 
 permissions:
   contents: read
