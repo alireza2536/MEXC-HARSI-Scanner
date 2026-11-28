@@ -56,6 +56,18 @@ function log(event, details = {}) {
   console.info(JSON.stringify({ at: new Date().toISOString(), event, ...details }));
 }
 
+function classifyScanError(error) {
+  const message = String(error?.message || error || "Unknown error");
+  const code = String(error?.code || "");
+  if (/HTTP\\s*(?:429|510)|rate.?limit|too many requests|频率/i.test(message)) return "mexc_limit";
+  if (/timed?\s*out|timeout|ETIMEDOUT/i.test(message)) return "timeout";
+  if (/network|fetch failed|failed to fetch|ECONN|ENOTFOUND|socket|internet/i.test(message)) return "network";
+  if (/INCOMPLETE_CANDLE_HISTORY|INVALID_ROLLING_4H_WINDOW|did not return|not ready|OHLC|invalid response/i.test(code + " " + message)) return "invalid_data";
+  if (/database|sqlite|SQLITE|storage|persist/i.test(message)) return "storage";
+  if (/MEXC (?:HTTP|API)|request failed/i.test(message)) return "mexc_api";
+  return "other";
+}
+
 export async function getLocalHistoricalCandles(store, mexc, symbol, currentOpen, signal, timeframe, candleSeconds) {
   const cached = await store.getHistoricalCandles(
     symbol,
@@ -161,6 +173,14 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
   let failedContracts = 0;
   let updatedContracts = 0;
   let processedContracts = 0;
+  const errors = [];
+  const errorCounts = Object.create(null);
+  function recordError(symbol, error, stage = "scan") {
+    const message = String(error?.message || error || "Unknown error");
+    const category = classifyScanError(error);
+    errorCounts[category] = (errorCounts[category] || 0) + 1;
+    if (errors.length < 100) errors.push({ symbol, timeframe, category, message, stage });
+  }
   const pending = [];
   const results = [];
   let persistQueue = Promise.resolve();
@@ -173,6 +193,8 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
       remaining: Math.max(0, contracts.length - processedContracts),
       updated: updatedContracts,
       failed: failedContracts,
+      errors: errors.slice(),
+      errorCounts: { ...errorCounts },
       symbol,
       results: results.slice()
     });
@@ -211,8 +233,10 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
       } catch (error) {
         failedContracts += batch.length;
         for (const item of batch) {
+          recordError(item.contract.symbol, error, "storage");
           log("local_persistence_failed", { symbol: item.contract.symbol, error: error.message });
         }
+        publishProgress(null);
       }
     });
     return persistQueue;
@@ -286,6 +310,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
           }
         }
         failedContracts += 1;
+        recordError(contract.symbol, error);
         log("local_contract_failed", { symbol: contract.symbol, error: error.message });
       }
       processedContracts += 1;
@@ -318,6 +343,8 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
     eligibleContracts: contracts.length,
     updatedContracts,
     failedContracts,
+    errors,
+    errorCounts: { ...errorCounts },
     historyCacheHits,
     historyBackfills,
     candleOpenTime: new Date(currentOpen * 1000).toISOString(),
