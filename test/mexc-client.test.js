@@ -165,7 +165,7 @@ test("MEXC API-level rate-limit responses trigger a shared cooldown and retry", 
       ok: true,
       json: async () => attempts === 1
         ? { success: false, code: 500, message: "Requests are too frequent, please try again later" }
-        : { success: true, data: Date.now() }
+        : { success: true, data: { time: [], open: [], high: [], low: [], close: [], vol: [], amount: [] } }
     };
   };
 
@@ -175,8 +175,8 @@ test("MEXC API-level rate-limit responses trigger a shared cooldown and retry", 
     const firstClient = new MexcClient({ requestLimiter: sharedLimiter });
     const secondClient = new MexcClient({ requestLimiter: sharedLimiter });
 
-    const result = await firstClient.getServerTimeMs();
-    assert.ok(Number.isFinite(result));
+    const result = await firstClient.getCandles("TEST_USDT", "Min60", 1_800_000_000, 1_800_003_600);
+    assert.deepEqual(result, []);
     assert.equal(attempts, 2);
     assert.ok(
       starts[1] - starts[0] >= 1900,
@@ -185,7 +185,7 @@ test("MEXC API-level rate-limit responses trigger a shared cooldown and retry", 
 
     // A second client uses the same limiter and therefore inherits the
     // reserved spacing/cooldown state rather than maintaining a private queue.
-    await secondClient.getServerTimeMs();
+    await secondClient.getCandles("TEST_USDT", "Min60", 1_800_000_000, 1_800_003_600);
     assert.equal(attempts, 3);
   } finally {
     globalThis.fetch = originalFetch;
