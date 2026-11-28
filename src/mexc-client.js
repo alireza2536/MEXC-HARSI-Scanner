@@ -94,15 +94,15 @@ export class MexcClient {
     await this.waitForRequestSlot(this.signal);
   }
 
-  async #get(path, params = {}) {
+  async #get(path, params = {}, { timeoutMs: requestedTimeoutMs, maxAttempts = 4 } = {}) {
     const url = new URL(`${config.mexcBaseUrl}${path}`);
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
     }
 
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    const timeoutMs = Math.max(1000, Number(requestedTimeoutMs ?? config.requestTimeoutMs) || 25000);
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       await this.#waitForRequestSlot();
-      const timeoutMs = Math.max(1000, Number(config.requestTimeoutMs) || 25000);
       const timeoutSignal = AbortSignal.timeout(timeoutMs);
       const requestSignal = this.signal
         ? AbortSignal.any([this.signal, timeoutSignal])
@@ -113,7 +113,7 @@ export class MexcClient {
           signal: requestSignal
         });
         if (!response.ok) {
-          if (![429, 500, 502, 503, 504].includes(response.status) || attempt === 3) {
+          if (![429, 500, 502, 503, 504].includes(response.status) || attempt === maxAttempts - 1) {
             throw new Error(`MEXC HTTP ${response.status} for ${path}`);
           }
           await sleep(500 * (2 ** attempt));
@@ -130,13 +130,13 @@ export class MexcClient {
           throw new DOMException("Scan was stopped.", "AbortError");
         }
         if (timeoutSignal.aborted) {
-          if (attempt < 3) {
+          if (attempt < maxAttempts - 1) {
             // MEXC endpoints can occasionally stall even when connectivity is
             // available. Retry timed-out requests with a short bounded backoff.
             await sleep(750 * (2 ** attempt));
             continue;
           }
-          throw new Error(`MEXC request timed out after ${timeoutMs} ms for ${path} (4 attempts)`);
+          throw new Error(`MEXC request timed out after ${timeoutMs} ms for ${path} (${maxAttempts} attempts)`);
         }
         throw error;
       }
@@ -145,7 +145,18 @@ export class MexcClient {
   }
 
   async getServerTimeMs() {
-    const data = await this.#get("/api/v1/contract/ping");
+    let data;
+    try {
+      // The clock endpoint is only used to align candle boundaries. Keep it
+      // short and allow the scan to proceed with the device clock if it stalls.
+      data = await this.#get("/api/v1/contract/ping", {}, { timeoutMs: 8000, maxAttempts: 1 });
+    } catch (error) {
+      if (/MEXC request timed out after 8000 ms for \/api\/v1\/contract\/ping/.test(error?.message || "")) {
+        console.warn("MEXC server-time ping timed out; using the device clock for this scan.");
+        return Date.now();
+      }
+      throw error;
+    }
     const value = Number(data);
     if (!Number.isFinite(value) || value <= 0) throw new Error("Invalid MEXC server time response.");
     return value;
