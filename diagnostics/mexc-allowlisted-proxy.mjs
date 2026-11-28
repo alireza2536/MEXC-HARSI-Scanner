@@ -190,6 +190,9 @@ const server = http.createServer(async (request, response) => {
   }
 
   const path = resolveUpstreamPath(url);
+  const receivedQuery = [...url.searchParams.entries()];
+  // Ignore only the known link-tracking parameter; never forward it to MEXC.
+  if (path) url.searchParams.delete("utm_source");
   const queryValidationError = path ? validateQuery(url, path) : "Endpoint path is not allowlisted";
   if (!path || queryValidationError) {
     return sendJson(response, 400, {
@@ -198,7 +201,7 @@ const server = http.createServer(async (request, response) => {
       method: request.method,
       receivedPath: url.pathname,
       normalizedPath: path || null,
-      receivedQuery: [...url.searchParams.entries()]
+      receivedQuery
     });
   }
 
