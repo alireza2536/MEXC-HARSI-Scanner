@@ -2,7 +2,11 @@ import pg from "pg";
 import { config, validateConfig } from "./config.js";
 import { MexcClient } from "./mexc-client.js";
 import { calculateHarsi } from "./harsi.js";
-import { hasCompleteCandleWindow } from "./candle-history-cache.js";
+import {
+  getMissingCandleRanges,
+  hasCompleteCandleWindow,
+  mergeCandleHistory
+} from "./candle-history-cache.js";
 
 const { Pool } = pg;
 const CANDLE_SECONDS = 15 * 60;
@@ -53,40 +57,76 @@ async function upsertHistoricalCandles(pool, candles) {
 }
 
 async function getHistoricalCandles(pool, mexc, symbol, currentOpen) {
+  const startSeconds = currentOpen - (HISTORY_CANDLES * CANDLE_SECONDS);
+  const expectedStartOpen = startSeconds * 1000;
+  const expectedLastOpen = (currentOpen - CANDLE_SECONDS) * 1000;
   const cachedResult = await pool.query(
     "SELECT symbol, open_time, close_time, open_price, high_price, low_price, " +
       "close_price, volume, amount " +
       "FROM public.mexc_futures_ohlcv_15m " +
-      "WHERE symbol = $1 AND open_time < to_timestamp($2) " +
-      "ORDER BY open_time DESC LIMIT $3",
-    [symbol, currentOpen, HISTORY_CANDLES]
+      "WHERE symbol = $1 AND open_time >= to_timestamp($2) AND open_time < to_timestamp($3) " +
+      "ORDER BY open_time ASC",
+    [symbol, startSeconds, currentOpen]
   );
-  const cached = normalizeDatabaseCandles(cachedResult.rows).reverse();
-  const expectedLastOpen = (currentOpen - CANDLE_SECONDS) * 1000;
+  const cached = normalizeDatabaseCandles(cachedResult.rows);
 
   if (hasCompleteCandleWindow(cached, HISTORY_CANDLES, expectedLastOpen, CANDLE_MS)) {
     return { candles: cached, cacheHit: true };
   }
 
-  const startSeconds = currentOpen - (HISTORY_CANDLES * CANDLE_SECONDS);
-  const historicalResponse = await mexc.get15mCandles(
-    symbol,
-    startSeconds,
-    currentOpen - 1
+  // Request only contiguous gaps in the required 2,000-candle window.
+  // Existing database candles are retained and are never downloaded again.
+  const missingRanges = getMissingCandleRanges(
+    cached,
+    expectedStartOpen,
+    HISTORY_CANDLES,
+    CANDLE_MS
   );
-  const historical = historicalResponse
-    .filter((candle) => Date.parse(candle.open_time) < currentOpen * 1000)
-    .sort((a, b) => Date.parse(a.open_time) - Date.parse(b.open_time))
-    .slice(-HISTORY_CANDLES);
+  const downloaded = [];
 
-  if (historical.length !== HISTORY_CANDLES) {
-    throw new Error(
-      "History is incomplete: expected " + HISTORY_CANDLES +
-      " prior candles, received " + historical.length
+  for (const range of missingRanges) {
+    const rangeStartSeconds = Math.floor(range.startOpenTime / 1000);
+    const rangeEndSeconds = Math.floor(
+      (range.endOpenTime + CANDLE_MS - 1000) / 1000
+    );
+    const response = await mexc.get15mCandles(
+      symbol,
+      rangeStartSeconds,
+      rangeEndSeconds
+    );
+    downloaded.push(
+      ...response.filter((candle) => {
+        const openTime = Date.parse(candle.open_time);
+        return openTime >= range.startOpenTime && openTime <= range.endOpenTime;
+      })
     );
   }
-  await upsertHistoricalCandles(pool, historical);
-  return { candles: historical, cacheHit: false };
+
+  const merged = mergeCandleHistory(cached, downloaded, HISTORY_CANDLES);
+  if (!hasCompleteCandleWindow(merged, HISTORY_CANDLES, expectedLastOpen, CANDLE_MS)) {
+    const missingAfterDownload = getMissingCandleRanges(
+      merged,
+      expectedStartOpen,
+      HISTORY_CANDLES,
+      CANDLE_MS
+    );
+    const missingCount = missingAfterDownload.reduce(
+      (total, range) => total + ((range.endOpenTime - range.startOpenTime) / CANDLE_MS) + 1,
+      0
+    );
+    throw new Error(
+      "History is still incomplete after downloading missing ranges: " +
+      missingCount + " candles missing."
+    );
+  }
+
+  const cachedOpenTimes = new Set(cached.map((candle) => candle.open_time));
+  const newCandles = merged.filter((candle) => !cachedOpenTimes.has(candle.open_time));
+  if (newCandles.length > 0) {
+    await upsertHistoricalCandles(pool, newCandles);
+  }
+
+  return { candles: merged, cacheHit: downloaded.length === 0 };
 }
 
 const CANDLE_COLUMNS = [
