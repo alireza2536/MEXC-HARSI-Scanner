@@ -623,7 +623,7 @@ function render(job){
   button.classList.toggle("is-cancel",job.status==="running");
   button.setAttribute("aria-label",button.textContent);
   let processed=0,total=0,failed=0;
-  const preparing=job.progress?.stage==="preparing";
+  const preparing=job.status==="running" && (!job.progress || job.progress.stage==="preparing");
   progressTrack.classList.toggle("is-indeterminate",preparing);
   if(job.progress){
     latestProgress=job.progress;
