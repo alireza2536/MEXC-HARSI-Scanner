@@ -92,6 +92,7 @@ export function startAndroidLocalApp(options = {}) {
 }
 
 async function startAndroidLocalAppOnce({ onStatus } = {}) {
+  installScanDiagnostics();
   if (!Capacitor.isNativePlatform()) {
     throw new Error("Local SQLite mode is available only inside the Android app.");
   }
@@ -210,7 +211,10 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
   }
 
   async function runScan(timeframes) {
-    if (running) return;
+    if (running) {
+      updateScanDiagnostics({ lock: "فعال؛ اجرای دوباره مسدود شد", result: "قفل داخلی مانع شروع شد" });
+      return;
+    }
     running = true;
     controller = new AbortController();
     activeJob = "running";
@@ -330,6 +334,10 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
     } finally {
       running = false;
       controller = null;
+      updateScanDiagnostics({
+        lock: "آزاد؛ اسکن قبلی پایان یافته",
+        result: activeJob === "completed" ? "اسکن کامل شد" : activeJob === "paused" ? "اسکن متوقف شد" : lastError || "اسکن ناموفق بود"
+      });
       publish();
     }
   }
@@ -343,7 +351,11 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       return getStatus();
     },
     async refreshNow(timeframes = ["Min15"]) {
-      if (running) return getStatus();
+      updateScanDiagnostics({ lock: running ? "فعال؛ شروع جدید مسدود شد" : "آزاد؛ اجازه شروع دارد", result: "در حال بررسی درخواست" });
+      if (running) {
+        updateScanDiagnostics({ result: "درخواست به‌علت قفل اسکن قبلی اجرا نشد" });
+        return getStatus();
+      }
       const selected = [...new Set(timeframes)].filter((value) => ["Min5", "Min15", "Min60"].includes(value));
       if (!selected.length) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
       // Notification permission is optional: Android can still run a foreground
@@ -355,15 +367,27 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       }
       let serviceStarted = false;
       try {
+        updateScanDiagnostics({ service: "در حال ارسال فرمان شروع" });
         await BackgroundScan.start();
         serviceStarted = true;
+        updateScanDiagnostics({ service: "فرمان شروع با موفقیت ارسال شد", result: "اسکن در حال آغاز" });
         await runScan(selected);
         return getStatus();
+      } catch (error) {
+        updateScanDiagnostics({
+          service: serviceStarted ? "سرویس شروع شد؛ خطا هنگام اسکن" : "شروع سرویس ناموفق: " + (error?.message || String(error)),
+          result: error?.message || String(error)
+        });
+        throw error;
       } finally {
         // Always close the foreground service, including scan failures and
         // unexpected exceptions. A failed coin is already logged by the worker
         // and does not prevent the remaining contracts from being processed.
-        if (serviceStarted) {\n          await BackgroundScan.stop().then(() => updateScanDiagnostics({ service: "فرمان توقف ارسال شد" })).catch((error) => updateScanDiagnostics({ service: "خطا هنگام توقف: " + (error?.message || String(error)) }));\n        }
+        if (serviceStarted) {
+          await BackgroundScan.stop()
+            .then(() => updateScanDiagnostics({ service: "فرمان توقف ارسال شد" }))
+            .catch((error) => updateScanDiagnostics({ service: "خطا هنگام توقف: " + (error?.message || String(error)) }));
+        }
         // Publish once more after the native foreground service has stopped.
         // This final authoritative event prevents the UI cancel label from
         // remaining visible if the WebView missed the scan-completion event.
