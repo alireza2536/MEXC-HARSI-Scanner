@@ -59,7 +59,7 @@ function log(event, details = {}) {
 function classifyScanError(error) {
   const message = String(error?.message || error || "Unknown error");
   const code = String(error?.code || "");
-  if (/HTTP\\s*(?:429|510)|rate.?limit|too many requests|频率/i.test(message)) return "mexc_limit";
+  if (/HTTP\s*(?:429|510)|rate.?limit|too many requests|频率/i.test(message)) return "mexc_limit";
   if (/timed?\s*out|timeout|ETIMEDOUT/i.test(message)) return "timeout";
   if (/network|fetch failed|failed to fetch|ECONN|ENOTFOUND|socket|internet/i.test(message)) return "network";
   if (/INCOMPLETE_CANDLE_HISTORY|INVALID_ROLLING_4H_WINDOW|did not return|not ready|OHLC|invalid response/i.test(code + " " + message)) return "invalid_data";
