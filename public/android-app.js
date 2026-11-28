@@ -256,8 +256,16 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       if (error.name === "AbortError" || controller.signal.aborted) {
         activeJob = "paused";
       } else {
+        const failedDuringPreparation = currentProgress?.stage === "preparing";
         activeJob = "failed";
-        lastError = error.message || String(error);
+        if (failedDuringPreparation) {
+          const technicalDetails = error?.message || String(error);
+          lastError = "دریافت اطلاعات اولیه از سرورهای MEXC ناموفق بود. اتصال اینترنت و دسترسی به api.mexc.com را بررسی کنید؛ سپس دکمه «بروزرسانی» را برای تلاش مجدد بزنید.\\nجزئیات فنی: " + technicalDetails;
+        } else {
+          lastError = error.message || String(error);
+        }
+        // Do not leave the UI showing a stale preparation/progress state after failure.
+        currentProgress = null;
       }
     } finally {
       running = false;
