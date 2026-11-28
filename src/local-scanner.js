@@ -100,10 +100,6 @@ export async function getLocalHistoricalCandles(store, mexc, symbol, currentOpen
       HISTORY_CANDLES,
       intervalMs
     );
-    const missingCount = missingAfterDownload.reduce(
-      (total, range) => total + ((range.endOpenTime - range.startOpenTime) / intervalMs) + 1,
-      0
-    );
     throw new IncompleteCandleHistoryError(HISTORY_CANDLES, merged.length);
   }
 
