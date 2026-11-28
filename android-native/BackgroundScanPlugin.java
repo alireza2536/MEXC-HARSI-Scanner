@@ -111,9 +111,24 @@ public class BackgroundScanPlugin extends Plugin {
 
     @PluginMethod
     public void stop(PluginCall call) {
-        Intent intent = new Intent(getContext(), HarsiScanService.class);
-        intent.setAction(HarsiScanService.ACTION_STOP);
-        getContext().startService(intent);
-        call.resolve();
+        final android.content.BroadcastReceiver stoppedReceiver = new android.content.BroadcastReceiver() {
+            @Override
+            public void onReceive(android.content.Context context, Intent intent) {
+                try { getContext().unregisterReceiver(this); } catch (Exception ignored) {}
+                call.resolve();
+            }
+        };
+        IntentFilter filter = new IntentFilter(HarsiScanService.ACTION_STOPPED);
+        if (Build.VERSION.SDK_INT >= 33) {
+            getContext().registerReceiver(stoppedReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            getContext().registerReceiver(stoppedReceiver, filter);
+        }
+        Intent serviceIntent = new Intent(getContext(), HarsiScanService.class);
+        boolean wasRunning = getContext().stopService(serviceIntent);
+        if (!wasRunning) {
+            try { getContext().unregisterReceiver(stoppedReceiver); } catch (Exception ignored) {}
+            call.resolve();
+        }
     }
 }
