@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MexcClient } from "../src/mexc-client.js";
+import { config } from "../src/config.js";
 
 test("concurrent MEXC requests reserve spaced start times", async () => {
   const originalFetch = globalThis.fetch;
@@ -25,7 +26,7 @@ test("concurrent MEXC requests reserve spaced start times", async () => {
     assert.equal(starts.length, 4);
     for (let index = 1; index < starts.length; index += 1) {
       assert.ok(
-        starts[index] - starts[index - 1] >= 110,
+        starts[index] - starts[index - 1] >= config.requestSpacingMs - 10,
         `request ${index + 1} started only ${starts[index] - starts[index - 1]}ms after the prior request`
       );
     }
