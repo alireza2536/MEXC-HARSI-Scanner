@@ -62,7 +62,7 @@ test("separate timeframe clients share one aggregate MEXC request limiter", asyn
     assert.equal(starts.length, 4);
     for (let index = 1; index < starts.length; index += 1) {
       assert.ok(
-        starts[index] - starts[index - 1] >= 110,
+        starts[index] - starts[index - 1] >= config.requestSpacingMs - 10,
         `shared request ${index + 1} started only ${starts[index] - starts[index - 1]}ms after the prior request`
       );
     }
