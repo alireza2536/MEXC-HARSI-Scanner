@@ -274,17 +274,26 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
     }
   }
 
-  return {
-    getStatus,
-    async cancelNow() {
-      if (!running || !controller) return getStatus();
-      controller.abort();
-      await BackgroundScan.stop().catch(() => {});
-      return getStatus();
-    },
-    async refreshNow(timeframes = ["Min15"]) {
-      if (running) return getStatus();
-      const selected = [...new Set(timeframes)].filter((value) => ["Min5", "Min15", "Min60"].includes(value));
+  // Keep the refresh operation locked until Android has processed the
+  // foreground-service stop request. runScan() can finish before that native
+  // lifecycle transition completes, so the next timeframe must wait here.
+  let refreshInFlight = null;
+
+  async function refreshNow(timeframes = ["Min15"]) {
+    if (running) return getStatus();
+    if (refreshInFlight) {
+      // A new timeframe requested during service shutdown should run next,
+      // rather than being silently discarded or racing the previous service.
+      await refreshInFlight;
+      return refreshNow(timeframes);
+    }
+
+    let releaseRefresh;
+    const thisRefresh = new Promise((resolve) => { releaseRefresh = resolve; });
+    refreshInFlight = thisRefresh;
+    const selected = [...new Set(timeframes)].filter((value) => ["Min5", "Min15", "Min60"].includes(value));
+    let serviceStarted = false;
+    try {
       if (!selected.length) throw new Error("حداقل یک تایم‌فریم را انتخاب کنید.");
       // Notification permission is optional: Android can still run a foreground
       // service when notifications are denied. Never block the market scan on it.
@@ -293,23 +302,33 @@ async function startAndroidLocalAppOnce({ onStatus } = {}) {
       } catch (permissionError) {
         console.warn("Harsi notification permission was not granted; continuing scan.", permissionError);
       }
-      let serviceStarted = false;
-      try {
-        await BackgroundScan.start();
-        serviceStarted = true;
-        await runScan(selected);
-        return getStatus();
-      } finally {
-        // Always close the foreground service, including scan failures and
-        // unexpected exceptions. A failed coin is already logged by the worker
-        // and does not prevent the remaining contracts from being processed.
-        if (serviceStarted) await BackgroundScan.stop().catch(() => {});
-        // Publish once more after the native foreground service has stopped.
-        // This final authoritative event prevents the UI cancel label from
-        // remaining visible if the WebView missed the scan-completion event.
-        if (!running) publish();
-      }
+      await BackgroundScan.start();
+      serviceStarted = true;
+      await runScan(selected);
+      return getStatus();
+    } finally {
+      // Always close the foreground service, including scan failures and
+      // unexpected exceptions. Keep refreshInFlight set until this completes,
+      // so a subsequent timeframe cannot overlap the previous service shutdown.
+      if (serviceStarted) await BackgroundScan.stop().catch(() => {});
+      if (refreshInFlight === thisRefresh) refreshInFlight = null;
+      releaseRefresh();
+      // Publish once more after the native foreground service has stopped.
+      // This final authoritative event prevents the UI cancel label from
+      // remaining visible if the WebView missed the scan-completion event.
+      if (!running) publish();
     }
+  }
+
+  return {
+    getStatus,
+    async cancelNow() {
+      if (!running || !controller) return getStatus();
+      controller.abort();
+      await BackgroundScan.stop().catch(() => {});
+      return getStatus();
+    },
+    refreshNow
   };
 }
 
