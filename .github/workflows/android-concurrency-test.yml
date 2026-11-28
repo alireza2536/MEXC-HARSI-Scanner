@@ -39,17 +39,6 @@ jobs:
       - name: Build web app
         run: npm run build
 
-      - name: Configure isolated test app identity
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const path = 'capacitor.config.json';
-          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
-          config.appId = 'com.personal.harsi.worker10test';
-          config.appName = 'Harsi Scanner Test 10';
-          fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
-          NODE
-
       - name: Generate Android project
         run: npx cap add android
 
@@ -75,7 +64,7 @@ jobs:
           import fs from 'node:fs';
           const file = 'android/app/build.gradle';
           let gradle = fs.readFileSync(file, 'utf8');
-          const buildNumber = 3000 + Number(process.env.BUILD_NUMBER);
+          const buildNumber = 4000 + Number(process.env.BUILD_NUMBER);
           if (!Number.isSafeInteger(buildNumber) || buildNumber < 1) throw new Error('Invalid Android versionCode');
           if (!/versionCode\s+\d+/.test(gradle)) throw new Error('Could not locate generated Android versionCode');
           gradle = gradle.replace(/versionCode\s+\d+/, `versionCode ${buildNumber}`);
@@ -103,7 +92,7 @@ jobs:
       - name: Sync Capacitor plugins and web assets
         run: npx cap sync android
 
-      - name: Build signed test APK
+      - name: Build signed same-app update APK
         working-directory: android
         env:
           ANDROID_KEYSTORE_FILE: ${{ github.workspace }}/android/app/harsi-release.keystore
@@ -116,10 +105,10 @@ jobs:
         if: always()
         run: rm -f android/app/harsi-release.keystore
 
-      - name: Upload signed test APK
+      - name: Upload signed same-app update APK
         uses: actions/upload-artifact@v4
         with:
-          name: harsi-android-concurrency-test-10
+          name: harsi-android-update-test-10
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
