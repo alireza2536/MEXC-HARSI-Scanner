@@ -14,17 +14,17 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify({ ok: false, error: "method_not_allowed" }));
   }
 
-  if (req.url === "/health") {
+  const pathname = new URL(req.url || "/", "http://localhost").pathname.replace(/\/+$/, "") || "/";
+  if (pathname === "/" || pathname === "/health") {
     res.writeHead(200);
-    return res.end(JSON.stringify({ ok: true, service: "mexc-connectivity-probe" }));
+    return res.end(JSON.stringify({ ok: true, service: "mexc-connectivity-probe", endpoints: ["/health", "/probe"] }));
   }
 
-  if (req.url !== "/probe") {
+  if (pathname !== "/probe") {
     res.writeHead(404);
-    return res.end(JSON.stringify({ ok: false, error: "not_found" }));
+    return res.end(JSON.stringify({ ok: false, error: "not_found", receivedPath: pathname }));
   }
 
-  // Prevent repeated public requests from turning this diagnostic into a traffic relay.
   const now = Date.now();
   if (cachedResult && now - lastProbeAt < 15000) {
     res.writeHead(200);
