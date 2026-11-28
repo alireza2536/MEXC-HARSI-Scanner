@@ -114,3 +114,33 @@ test("MEXC client accepts Min5 and converts five-minute candle close times", asy
     assert.equal(candles[0].close_time, new Date(1_800_000_300_000).toISOString());
   } finally { globalThis.fetch = originalFetch; }
 });
+
+
+test("server-time ping uses the device clock after a single 8-second timeout", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  const deviceNow = 1_800_000_000_000;
+  Date.now = () => deviceNow;
+  globalThis.fetch = async (_url, options) => {
+    assert.equal(options.signal.reason?.name, "TimeoutError");
+    throw options.signal.reason;
+  };
+  try {
+    const client = new MexcClient();
+    assert.equal(await client.getServerTimeMs(), deviceNow);
+  } finally {
+    globalThis.fetch = originalFetch;
+    Date.now = originalNow;
+  }
+});
+
+test("server-time ping still reports non-timeout errors", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("Network unavailable"); };
+  try {
+    const client = new MexcClient();
+    await assert.rejects(client.getServerTimeMs(), /Network unavailable/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
