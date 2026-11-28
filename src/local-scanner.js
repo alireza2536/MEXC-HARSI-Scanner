@@ -167,6 +167,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, eligible
 
   function publishProgress(symbol) {
     onProgress?.({
+      stage: "scanning",
       processed: processedContracts,
       total: contracts.length,
       remaining: Math.max(0, contracts.length - processedContracts),
