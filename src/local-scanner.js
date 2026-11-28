@@ -94,13 +94,16 @@ export async function getLocalHistoricalCandles(store, mexc, symbol, currentOpen
 
   const merged = mergeCandleHistory(cached, downloaded, HISTORY_CANDLES);
   if (!hasCompleteCandleWindow(merged, HISTORY_CANDLES, expectedLastOpen, intervalMs)) {
-    const missingAfterDownload = getMissingCandleRanges(
-      merged,
-      expectedStartOpen,
-      HISTORY_CANDLES,
-      intervalMs
+    const latestEight = merged.slice(-8);
+    const rollingWindowInvalid = timeframe === "Min60" && (
+      !hasCompleteCandleWindow(latestEight, 8, expectedLastOpen, intervalMs)
+      || aggregateRollingFourHourCandles(latestEight).length !== 2
     );
-    throw new IncompleteCandleHistoryError(HISTORY_CANDLES, merged.length);
+    throw new IncompleteCandleHistoryError(
+      HISTORY_CANDLES,
+      merged.length,
+      rollingWindowInvalid
+    );
   }
 
   const cachedOpenTimes = new Set(cached.map((candle) => candle.open_time));
