@@ -123,6 +123,7 @@ const grouped = REQUEST_SPACINGS_MS.flatMap((requestSpacingMs) => WORKERS.map((w
   const rows = results.filter((item) => item.requestSpacingMs === requestSpacingMs && item.workerCount === workerCount);
   const mean = (key) => Math.round(rows.reduce((sum, item) => sum + item[key], 0) / rows.length);
   return {
+    requestSpacingMs,
     workerCount,
     avgElapsedMs: mean("elapsedMs"),
     avgContractsPerMinute: Number((rows.reduce((sum, item) => sum + item.contractsPerMinute, 0) / rows.length).toFixed(2)),
