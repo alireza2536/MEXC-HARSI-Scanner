@@ -37,6 +37,16 @@
     .results-heading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px}.results-update-time{color:#94a3b8;font-size:10px;line-height:1.4;direction:ltr;white-space:nowrap;font-weight:400}.ha-sort-toggle{width:28px;height:24px;padding:0;margin:0;border-radius:7px;background:#26364d;color:#e5edf8;font-size:19px;line-height:1}
     .ha-sort-toggle:hover{background:#354862}
     .error{color:#ff9999;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;font-size:15px}
+    .connection-diagnostics{margin-top:12px;border:1px solid #354862;border-radius:12px;background:#0b1422;overflow:hidden}
+    .connection-diagnostics>summary{padding:11px 13px;color:#bfdbfe;font-size:13px;font-weight:700;cursor:pointer;text-align:center}
+    .connection-diagnostics-list{display:grid;gap:8px;padding:0 12px 12px}
+    .connection-diagnostic-item{padding:10px;border:1px solid #26364d;border-radius:9px;background:#172438;direction:rtl}
+    .connection-diagnostic-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:700;color:#e5edf8}
+    .connection-diagnostic-state{white-space:nowrap;font-size:11px}
+    .connection-diagnostic-state.waiting,.connection-diagnostic-state.requesting,.connection-diagnostic-state.retrying{color:#fbbf24}
+    .connection-diagnostic-state.success{color:#4ade80}
+    .connection-diagnostic-state.failed{color:#fca5a5}
+    .connection-diagnostic-meta{display:block;margin-top:5px;color:#9fb0c7;font-size:11px;line-height:1.7;overflow-wrap:anywhere;direction:ltr;text-align:left}
 .scan-error-details{margin-top:12px;border:1px solid #354862;border-radius:12px;background:#0b1422;overflow:hidden}
 .scan-error-details>summary{padding:11px 13px;color:#ffb4b4;font-size:13px;font-weight:700;cursor:pointer;text-align:center}
 .scan-error-content{padding:0 12px 12px}
@@ -119,6 +129,10 @@
       <span id="errorCount">خطا: —</span>
     </div>
     <p id="error" class="error"></p>
+    <details id="connectionDiagnostics" class="connection-diagnostics" hidden>
+      <summary>جزئیات اتصال به سرور MEXC</summary>
+      <div id="connectionDiagnosticsList" class="connection-diagnostics-list"></div>
+    </details>
     <details id="newCoinsDetails" class="new-coins-details" hidden>
       <summary id="newCoinsSummary">ارزهای جدید: ۰</summary>
       <div id="newCoinsList" class="scan-error-list"></div>
@@ -695,6 +709,31 @@ function normalizeNumericInput(value){
     .replace(/[−–]/g, "-")
     .replace(/٫/g, ".");
 }
+const connectionDiagnostics=document.getElementById("connectionDiagnostics");
+const connectionDiagnosticsList=document.getElementById("connectionDiagnosticsList");
+function renderConnectionDiagnostics(items=[]){
+  connectionDiagnosticsList.replaceChildren();
+  const labels={waiting:"در صف ارسال",requesting:"در حال دریافت پاسخ",retrying:"تلاش مجدد",success:"موفق",failed:"ناموفق"};
+  for(const item of items){
+    const card=document.createElement("div");
+    card.className="connection-diagnostic-item";
+    const heading=document.createElement("div");
+    heading.className="connection-diagnostic-heading";
+    const name=document.createElement("span");
+    name.textContent=item.label||item.path||"درخواست MEXC";
+    const state=document.createElement("span");
+    state.className="connection-diagnostic-state "+(item.state||"waiting");
+    state.textContent=labels[item.state]||"در حال بررسی";
+    heading.append(name,state);
+    const meta=document.createElement("small");
+    meta.className="connection-diagnostic-meta";
+    const details=[item.path||"",item.durationMs!==undefined?("زمان: "+toEnglishDigits((Number(item.durationMs)/1000).toFixed(1))+" ثانیه"):"",item.attempt?("تلاش: "+toEnglishDigits(item.attempt)):"",item.error||""].filter(Boolean);
+    meta.textContent=details.join("  |  ");
+    card.append(heading,meta);
+    connectionDiagnosticsList.append(card);
+  }
+  connectionDiagnostics.hidden=items.length===0;
+}
 function render(job){
   const summary=job.summary;
   button.disabled=false;
@@ -741,6 +780,7 @@ function render(job){
   progressFill.style.width=percent+"%";
   progressTrack.setAttribute("aria-valuenow",String(Math.round(percent)));
   errorEl.textContent=toEnglishDigits(job.error||"");
+  renderConnectionDiagnostics(job.progress?.diagnostics||[]);
 }
 window.localHarsiRender=render;
 function isNativeApp(){return Boolean(window.localHarsiReady||window.localHarsiNative||window.Capacitor?.isNativePlatform?.());}
