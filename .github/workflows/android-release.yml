@@ -65,8 +65,8 @@ jobs:
           // Keep versionCode above legacy test builds (4000+) so they can update in place.
           const buildNumber = 5000 + Number(process.env.BUILD_NUMBER);
           if (!Number.isSafeInteger(buildNumber) || buildNumber < 5001) throw new Error('Invalid Android versionCode');
-          if (!/versionCode\\s+\\d+/.test(gradle)) throw new Error('Could not locate generated Android versionCode');
-          gradle = gradle.replace(/versionCode\\s+\\d+/, `versionCode ${buildNumber}`);
+          if (!/versionCode\s+\d+/.test(gradle)) throw new Error('Could not locate generated Android versionCode');
+          gradle = gradle.replace(/versionCode\s+\d+/, `versionCode ${buildNumber}`);
           const signing = `
               signingConfigs {
                   release {
@@ -78,12 +78,12 @@ jobs:
               }
           `;
           if (!gradle.includes('signingConfigs {')) {
-            gradle = gradle.replace(/    buildTypes\\s*\\{/, signing + '\\n    buildTypes {');
+            gradle = gradle.replace(/    buildTypes\s*\{/, signing + '\n    buildTypes {');
           }
           if (!gradle.includes('signingConfig signingConfigs.release')) {
-            const releaseBlock = /(buildTypes\\s*\\{\\s*release\\s*\\{)/;
+            const releaseBlock = /(buildTypes\s*\{\s*release\s*\{)/;
             if (!releaseBlock.test(gradle)) throw new Error('Could not locate Android buildTypes.release block');
-            gradle = gradle.replace(releaseBlock, '$1\\n            signingConfig signingConfigs.release');
+            gradle = gradle.replace(releaseBlock, '$1\n            signingConfig signingConfigs.release');
           }
           fs.writeFileSync(file, gradle);
           NODE
