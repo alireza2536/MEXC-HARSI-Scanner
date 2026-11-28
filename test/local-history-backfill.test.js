@@ -72,8 +72,8 @@ for (const [timeframe, intervalSeconds] of Object.entries(INTERVALS)) {
     assert.equal(store.writes[0].rows.length, 2);
     assert.equal(requests.length, 2);
     assert.deepEqual(requests.map(({ start, end }) => [start, end]), [
-      [startSeconds + 100 * intervalSeconds, startSeconds + 100 * intervalSeconds],
-      [startSeconds + 1500 * intervalSeconds, startSeconds + 1500 * intervalSeconds]
+      [startSeconds + 100 * intervalSeconds, startSeconds + 101 * intervalSeconds - 1],
+      [startSeconds + 1500 * intervalSeconds, startSeconds + 1501 * intervalSeconds - 1]
     ]);
   });
 
