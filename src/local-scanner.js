@@ -1,5 +1,9 @@
 import { calculateHarsi } from "./harsi.js";
-import { hasCompleteCandleWindow } from "./candle-history-cache.js";
+import {
+  getMissingCandleRanges,
+  hasCompleteCandleWindow,
+  mergeCandleHistory
+} from "./candle-history-cache.js";
 import { aggregateRollingFourHourCandles, calculateDailyVwap } from "./vwap.js";
 
 export async function getSharedDailyVwap({ mexc, symbol, timeframe, candles, serverNowMs, nowSeconds, cache = new Map() }) {
@@ -52,50 +56,62 @@ function log(event, details = {}) {
   console.info(JSON.stringify({ at: new Date().toISOString(), event, ...details }));
 }
 
-async function getHistory(store, mexc, symbol, currentOpen, signal, timeframe, candleSeconds) {
+export async function getLocalHistoricalCandles(store, mexc, symbol, currentOpen, signal, timeframe, candleSeconds) {
   const cached = await store.getHistoricalCandles(
     symbol,
     new Date(currentOpen * 1000).toISOString(),
     HISTORY_CANDLES,
     timeframe
   );
+  const intervalMs = candleSeconds * 1000;
+  const expectedStartOpen = (currentOpen - HISTORY_CANDLES * candleSeconds) * 1000;
   const expectedLastOpen = (currentOpen - candleSeconds) * 1000;
 
-  if (hasCompleteCandleWindow(cached, HISTORY_CANDLES, expectedLastOpen, candleSeconds * 1000)) {
+  if (hasCompleteCandleWindow(cached, HISTORY_CANDLES, expectedLastOpen, intervalMs)) {
     return { candles: cached, cacheHit: true };
   }
 
-  const response = await mexc.getCandles(
-    symbol,
-    timeframe,
-    currentOpen - HISTORY_CANDLES * candleSeconds,
-    currentOpen - 1
-  );
-  if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
-  const historical = response
-    .filter((candle) => Date.parse(candle.open_time) < currentOpen * 1000)
-    .sort((a, b) => Date.parse(a.open_time) - Date.parse(b.open_time))
-    .slice(-HISTORY_CANDLES);
-
-  if (!hasCompleteCandleWindow(
-    historical,
+  // Backfill only absent open times; never redownload candles already in SQLite.
+  const missingRanges = getMissingCandleRanges(
+    cached,
+    expectedStartOpen,
     HISTORY_CANDLES,
-    expectedLastOpen,
-    candleSeconds * 1000
-  )) {
-    const latestEight = historical.slice(-8);
-    const rollingWindowInvalid = timeframe === "Min60" && (
-      !hasCompleteCandleWindow(latestEight, 8, expectedLastOpen, candleSeconds * 1000)
-      || aggregateRollingFourHourCandles(latestEight).length !== 2
-    );
-    throw new IncompleteCandleHistoryError(
-      HISTORY_CANDLES,
-      historical.length,
-      rollingWindowInvalid
-    );
+    intervalMs
+  );
+  const downloaded = [];
+
+  for (const range of missingRanges) {
+    if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+    const startSeconds = Math.floor(range.startOpenTime / 1000);
+    const endSeconds = Math.floor((range.endOpenTime + intervalMs - 1000) / 1000);
+    const response = await mexc.getCandles(symbol, timeframe, startSeconds, endSeconds);
+    if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+    downloaded.push(...response.filter((candle) => {
+      const openTime = Date.parse(candle.open_time);
+      return openTime >= range.startOpenTime && openTime <= range.endOpenTime;
+    }));
   }
-  await store.upsertCandles(historical, timeframe);
-  return { candles: historical, cacheHit: false };
+
+  const merged = mergeCandleHistory(cached, downloaded, HISTORY_CANDLES);
+  if (!hasCompleteCandleWindow(merged, HISTORY_CANDLES, expectedLastOpen, intervalMs)) {
+    const missingAfterDownload = getMissingCandleRanges(
+      merged,
+      expectedStartOpen,
+      HISTORY_CANDLES,
+      intervalMs
+    );
+    const missingCount = missingAfterDownload.reduce(
+      (total, range) => total + ((range.endOpenTime - range.startOpenTime) / intervalMs) + 1,
+      0
+    );
+    throw new IncompleteCandleHistoryError(HISTORY_CANDLES, merged.length);
+  }
+
+  const cachedOpenTimes = new Set(cached.map((candle) => candle.open_time));
+  const newCandles = merged.filter((candle) => !cachedOpenTimes.has(candle.open_time));
+  if (newCandles.length > 0) await store.upsertCandles(newCandles, timeframe);
+
+  return { candles: merged, cacheHit: downloaded.length === 0 };
 }
 
 /**
@@ -207,7 +223,7 @@ export async function runLocalHarsiScan({ mexc, store, maxPrice, nowMs, onProgre
       if (index >= contracts.length) return;
       const contract = contracts[index];
       try {
-        const history = await getHistory(store, mexc, contract.symbol, currentOpen, signal, timeframe, candleSeconds);
+        const history = await getLocalHistoricalCandles(store, mexc, contract.symbol, currentOpen, signal, timeframe, candleSeconds);
         throwIfAborted();
         if (history.cacheHit) historyCacheHits += 1;
         else historyBackfills += 1;
