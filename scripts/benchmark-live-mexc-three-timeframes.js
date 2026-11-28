@@ -3,8 +3,9 @@ import { config } from "../src/config.js";
 import { MexcClient, createMexcRequestLimiter } from "../src/mexc-client.js";
 import { runLocalHarsiScan } from "../src/local-scanner.js";
 
-const TIMEFRAMES = ["Min5", "Min15", "Min60"];
+const TIMEFRAMES = ["Min5", "Min15"];
 const WORKERS_PER_TIMEFRAME = 8;
+const SYMBOLS_PER_TIMEFRAME = 10;
 const MAX_PRICE = 10;
 const CANDIDATE_SYMBOLS = [
   "XRP_USDT", "ADA_USDT", "DOGE_USDT", "TRX_USDT",
@@ -80,7 +81,7 @@ const eligible = await mexc.getEligibleUsdtContracts(MAX_PRICE);
 const eligibleBySymbol = new Map(eligible.map((item) => [item.symbol, item]));
 const preferred = CANDIDATE_SYMBOLS.map((symbol) => eligibleBySymbol.get(symbol)).filter(Boolean);
 const selected = [...preferred, ...eligible.filter((item) => !preferred.some((chosen) => chosen.symbol === item.symbol))]
-  .slice(0, WORKERS_PER_TIMEFRAME);
+  .slice(0, SYMBOLS_PER_TIMEFRAME);
 
 console.log(JSON.stringify({
   event: "live_mexc_preflight",
@@ -95,8 +96,8 @@ console.log(JSON.stringify({
   totalLogicalWorkers: TIMEFRAMES.length * WORKERS_PER_TIMEFRAME
 }));
 
-if (selected.length !== WORKERS_PER_TIMEFRAME) {
-  throw new Error(`Need 8 eligible contracts for a valid 24-worker test; found ${selected.length}`);
+if (selected.length !== SYMBOLS_PER_TIMEFRAME) {
+  throw new Error(`Need 10 eligible contracts for a valid 20-operation test; found ${selected.length}`);
 }
 
 const dailyVwapCache = new Map();
@@ -135,7 +136,7 @@ const elapsedMs = Math.round(performance.now() - overallStart);
 const spacingGaps = requestStarts.slice(1).map((value, index) => value - requestStarts[index]);
 const minSpacingMs = spacingGaps.length ? Math.round(Math.min(...spacingGaps)) : null;
 const report = {
-  event: "live_mexc_three_timeframe_result",
+  event: "live_mexc_two_timeframe_10_symbols_result",
   mode: "LIVE_MEXC_PUBLIC_FUTURES_KLINE",
   startedAt,
   completedAt: new Date().toISOString(),
@@ -160,6 +161,6 @@ const rateLimitErrors = summaries.reduce((sum, item) => sum + (item.errorCounts?
 const badHttpStatuses = Object.keys(httpStatuses).some((status) => Number(status) === 429);
 const spacingViolation = minSpacingMs !== null && minSpacingMs < 115;
 if (rateLimitErrors > 0 || badHttpStatuses || spacingViolation
-    || summaries.some((item) => item.failed > 0 || item.skipped > 0 || item.updated !== WORKERS_PER_TIMEFRAME)) {
+    || summaries.some((item) => item.failed > 0 || item.skipped > 0 || item.updated !== SYMBOLS_PER_TIMEFRAME)) {
   process.exitCode = 1;
 }
