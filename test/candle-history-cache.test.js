@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hasCompleteCandleWindow, mergeCandleHistory } from "../src/candle-history-cache.js";
+import {
+  getMissingCandleRanges,
+  hasCompleteCandleWindow,
+  mergeCandleHistory
+} from "../src/candle-history-cache.js";
 
 function candle(openTime, closePrice) {
   return {
@@ -66,4 +70,37 @@ test("a cached window with a missing interval is rejected", () => {
     hasCompleteCandleWindow(candles, 3, Date.parse(candles[2].open_time), 15 * 60 * 1000),
     false
   );
+});
+
+test("missing candle detection returns only contiguous missing ranges", () => {
+  const start = Date.UTC(2026, 0, 1, 0, 0);
+  const interval = 15 * 60 * 1000;
+  const cached = [0, 1, 4, 5, 8].map((index) => candle(start + index * interval, index));
+
+  assert.deepEqual(
+    getMissingCandleRanges(cached, start, 10, interval),
+    [
+      { startOpenTime: start + 2 * interval, endOpenTime: start + 3 * interval },
+      { startOpenTime: start + 6 * interval, endOpenTime: start + 7 * interval },
+      { startOpenTime: start + 9 * interval, endOpenTime: start + 9 * interval }
+    ]
+  );
+});
+
+test("missing candle detection requests the full window only when the cache is empty", () => {
+  const start = Date.UTC(2026, 0, 1, 0, 0);
+  const interval = 15 * 60 * 1000;
+
+  assert.deepEqual(
+    getMissingCandleRanges([], start, 3, interval),
+    [{ startOpenTime: start, endOpenTime: start + 2 * interval }]
+  );
+});
+
+test("missing candle detection returns no ranges for a complete window", () => {
+  const start = Date.UTC(2026, 0, 1, 0, 0);
+  const interval = 15 * 60 * 1000;
+  const cached = Array.from({ length: 3 }, (_, index) => candle(start + index * interval, index));
+
+  assert.deepEqual(getMissingCandleRanges(cached, start, 3, interval), []);
 });
