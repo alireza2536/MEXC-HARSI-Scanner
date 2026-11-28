@@ -38,7 +38,7 @@ test("local scanner reuses complete 2,000-candle cache and persists current HA",
     async upsertCandles() { assert.fail("A complete cache must not be backfilled."); }
   };
   const mexc = {
-    async getServerTimeMs() { return NOW_MS; },
+    async getServerTimeMs() { assert.fail("A supplied server time must be reused."); },
     async getEligibleUsdtContracts(maxPrice) {
       calls.maxPrice = maxPrice;
       return [{ symbol, lastPrice: 2 }];
@@ -52,9 +52,17 @@ test("local scanner reuses complete 2,000-candle cache and persists current HA",
     }
   };
 
-  const summary = await runLocalHarsiScan({ mexc, store, maxPrice: 30 });
+  const progress = [];
+  const summary = await runLocalHarsiScan({
+    mexc, store, maxPrice: 30, nowMs: NOW_MS,
+    eligibleContracts: [{ symbol, lastPrice: 2 }],
+    onProgress: (value) => progress.push(value)
+  });
 
-  assert.equal(calls.maxPrice, 30);
+  assert.equal(progress[0].processed, 0);
+  assert.equal(progress[0].total, 1);
+  assert.equal(progress.at(-1).processed, 1);
+  assert.equal(calls.maxPrice, null);
   assert.equal(calls.pruneResults, 1);
   assert.equal(calls.pruneHistory, 1);
   assert.equal(calls.persist.length, 1);

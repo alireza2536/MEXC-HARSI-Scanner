@@ -21,6 +21,8 @@
     #refresh.is-cancel{background:#9F1239}
     .progress-track{height:9px;margin:18px 0 9px;background:#26364d;border-radius:999px;overflow:hidden}
     .progress-fill{height:100%;width:0;background:#16a36a;border-radius:999px;transition:width .25s ease}
+    .progress-track.is-indeterminate .progress-fill{width:32%!important;animation:progress-indeterminate 1.25s ease-in-out infinite}
+    @keyframes progress-indeterminate{from{transform:translateX(-120%)}to{transform:translateX(340%)}}
     .progress-details{display:none;align-items:center;justify-content:space-between;gap:12px;font-size:15px}
     #message{margin:0;color:#e5edf8;text-align:right;font-size:15px}
     #errorCount{color:#ff9999;white-space:nowrap;font-weight:700;font-size:15px}
@@ -593,6 +595,8 @@ function render(job){
   button.classList.toggle("is-cancel",job.status==="running");
   button.setAttribute("aria-label",button.textContent);
   let processed=0,total=0,failed=0;
+  const preparing=job.progress?.stage==="preparing";
+  progressTrack.classList.toggle("is-indeterminate",preparing);
   if(job.progress){
     latestProgress=job.progress;
     processed=Number(job.progress.processed)||0;
@@ -615,7 +619,7 @@ function render(job){
   }
   const showUpdateStats=job.status==="running"||processed>0||total>0||failed>0;
   document.querySelector(".progress-details").style.display=showUpdateStats?"flex":"none";
-  message.textContent="پردازش: "+Number(processed).toLocaleString("en-US")+" از "+Number(total).toLocaleString("en-US");
+  message.textContent=preparing?"دریافت اطلاعات بازار از MEXC...":"پردازش: "+Number(processed).toLocaleString("en-US")+" از "+Number(total).toLocaleString("en-US");
   errorCount.textContent="خطا: "+Number(failed).toLocaleString("en-US");
   const percent=total>0?Math.max(0,Math.min(100,processed/total*100)):0;
   progressFill.style.width=percent+"%";
