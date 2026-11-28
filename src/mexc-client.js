@@ -73,15 +73,26 @@ export function isEligibleCryptoBaseAsset(baseCoin) {
 
 export function createMexcRequestLimiter() {
   let nextRequestAt = 0;
-  return async function waitForRequestSlot(signal) {
-    if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
-    // One shared scheduler reserves request start times across all clients.
-    const scheduledAt = Math.max(Date.now(), nextRequestAt);
-    nextRequestAt = scheduledAt + Math.max(0, config.requestSpacingMs);
-    const wait = scheduledAt - Date.now();
-    if (wait > 0) await sleep(wait);
-    if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+  let cooldownUntil = 0;
+  const waitForRequestSlot = async function (signal) {
+    while (true) {
+      if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+      // Reserve a globally spaced slot, but re-check cooldown after sleeping:
+      // requests already queued before a rate-limit response must also pause.
+      const scheduledAt = Math.max(Date.now(), nextRequestAt, cooldownUntil);
+      nextRequestAt = scheduledAt + Math.max(0, config.requestSpacingMs);
+      const wait = scheduledAt - Date.now();
+      if (wait > 0) await sleep(wait);
+      if (signal?.aborted) throw new DOMException("Scan was stopped.", "AbortError");
+      if (Date.now() >= cooldownUntil) return;
+    }
   };
+  waitForRequestSlot.deferFor = (milliseconds) => {
+    const until = Date.now() + Math.max(0, Number(milliseconds) || 0);
+    cooldownUntil = Math.max(cooldownUntil, until);
+    nextRequestAt = Math.max(nextRequestAt, cooldownUntil);
+  };
+  return waitForRequestSlot;
 }
 
 export class MexcClient {
@@ -116,13 +127,25 @@ export class MexcClient {
           if (![429, 500, 502, 503, 504].includes(response.status) || attempt === maxAttempts - 1) {
             throw new Error(`MEXC HTTP ${response.status} for ${path}`);
           }
-          await sleep(500 * (2 ** attempt));
+          if (response.status === 429) {
+            // HTTP rate limits pause every client using this shared limiter.
+            this.waitForRequestSlot.deferFor?.(2000 * (2 ** attempt));
+          } else {
+            await sleep(500 * (2 ** attempt));
+          }
           continue;
         }
 
         const body = await response.json();
         if (body?.success === false || (body?.code !== undefined && Number(body.code) !== 0)) {
-          throw new Error(`MEXC API error for ${path}: ${body.message || body.code || "unknown"}`);
+          const apiMessage = String(body.message || body.code || "unknown");
+          if (/requests? are too frequent|too frequent|rate.?limit|too many requests/i.test(apiMessage)) {
+            // MEXC sometimes reports rate limiting in a successful HTTP 200
+            // response. Back off globally so all queued timeframe workers pause.
+            this.waitForRequestSlot.deferFor?.(2000 * (2 ** attempt));
+            if (attempt < maxAttempts - 1) continue;
+          }
+          throw new Error(`MEXC API error for ${path}: ${apiMessage}`);
         }
         return body?.data;
       } catch (error) {
