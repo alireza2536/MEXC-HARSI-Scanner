@@ -48,6 +48,7 @@
 .scan-error-item strong{display:block;color:#fca5a5;font-size:12px;margin-bottom:4px}
 .scan-error-item small{display:block;color:#9fb0c7;font-size:11px;line-height:1.7;overflow-wrap:anywhere}
 .scan-error-empty{color:#9fb0c7;text-align:center;font-size:12px;padding:8px}
+    .skip-count{color:#fbbf24;white-space:nowrap;font-weight:700;font-size:15px}
     .ha-filter{margin-bottom:16px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
     .vwap-filter{margin:0 0 14px;padding:14px;background:#0b1422;border:1px solid #26364d;border-radius:14px}
     .vwap-filter-title{margin:0 0 10px;text-align:center;font-size:14px;font-weight:700}
@@ -112,6 +113,7 @@
     <div class="progress-details" aria-live="polite">
       <p id="message">پردازش: — از —</p>
       <span id="errorCount">خطا: —</span>
+      <span id="skippedCount" class="skip-count">ردشده: —</span>
     </div>
     <p id="error" class="error"></p>
     <details id="scanErrorDetails" class="scan-error-details" hidden>
@@ -310,20 +312,21 @@ const message=document.getElementById("message");
 const progressTrack=document.querySelector(".progress-track");
 const progressFill=document.getElementById("progressFill");
 const errorCount=document.getElementById("errorCount");
+const skippedCount=document.getElementById("skippedCount");
 const errorEl=document.getElementById("error");
 const scanErrorDetails=document.getElementById("scanErrorDetails");
 const scanErrorSummary=document.getElementById("scanErrorSummary");
 const scanErrorCategories=document.getElementById("scanErrorCategories");
 const scanErrorList=document.getElementById("scanErrorList");
 let selectedErrorCategory="all";
-const errorCategoryLabels={mexc_limit:"محدودیت درخواست MEXC",timeout:"پایان مهلت (Timeout)",network:"خطای شبکه",invalid_data:"داده یا پاسخ نامعتبر",storage:"خطای ذخیره‌سازی",mexc_api:"خطای API مکسی",other:"سایر خطاها"};
+const errorCategoryLabels={insufficient_history:"تاریخچه ناکافی (رد شده)",mexc_limit:"محدودیت درخواست MEXC",timeout:"پایان مهلت (Timeout)",network:"خطای شبکه",invalid_data:"داده یا پاسخ نامعتبر",storage:"خطای ذخیره‌سازی",mexc_api:"خطای API مکسی",other:"سایر خطاها"};
 function renderScanErrors(errors,errorCounts){
   const entries=Array.isArray(errors)?errors:[];
   const counts=errorCounts&&typeof errorCounts==="object"?errorCounts:{};
   const total=Object.values(counts).reduce((sum,value)=>sum+(Number(value)||0),0);
   scanErrorDetails.hidden=total===0&&entries.length===0;
   if(scanErrorDetails.hidden)return;
-  scanErrorSummary.textContent="جزئیات خطاها: "+Number(total||entries.length).toLocaleString("en-US");
+  scanErrorSummary.textContent="جزئیات خطاها و موارد ردشده: "+Number(total||entries.length).toLocaleString("en-US");
   scanErrorCategories.replaceChildren();
   const categories=[["all","همه خطاها",entries.length],...Object.entries(counts).map(([key,count])=>[key,errorCategoryLabels[key]||key,Number(count)||0])];
   for(const [key,label,count] of categories){
@@ -673,7 +676,7 @@ function render(job){
   button.textContent=job.status==="running"?"لغو بروزرسانی":"بروزرسانی";
   button.classList.toggle("is-cancel",job.status==="running");
   button.setAttribute("aria-label",button.textContent);
-  let processed=0,total=0,failed=0;
+  let processed=0,total=0,failed=0,skipped=0;
   let scanErrors=[],scanErrorCounts={};
   const preparing=job.status==="running" && (!job.progress || job.progress.stage==="preparing");
   progressTrack.classList.toggle("is-indeterminate",preparing);
@@ -682,6 +685,7 @@ function render(job){
     processed=Number(job.progress.processed)||0;
     total=Number(job.progress.total)||0;
     failed=Number(job.progress.failed)||0;
+    skipped=Number(job.progress.skipped)||0;
     scanErrors=job.progress.errors||[];
     scanErrorCounts=job.progress.errorCounts||{};
     if(Array.isArray(job.progress.results)){
@@ -692,19 +696,21 @@ function render(job){
     }
   }else if(summary){
     processed=Number(summary.processedContracts);
-    if(!Number.isFinite(processed)) processed=(Number(summary.updatedContracts)||0)+(Number(summary.failedContracts)||0);
+    if(!Number.isFinite(processed)) processed=(Number(summary.updatedContracts)||0)+(Number(summary.failedContracts)||0)+(Number(summary.skippedContracts)||0);
     total=Number(summary.eligibleContracts)||0;
     failed=Number(summary.failedContracts)||0;
+    skipped=Number(summary.skippedContracts)||0;
     scanErrors=summary.errors||[];
     scanErrorCounts=summary.errorCounts||{};
     latestResults=Array.isArray(summary.results)?summary.results:[];
     latestProgress=null;
     renderRows();
   }
-  const showUpdateStats=job.status==="running"||processed>0||total>0||failed>0;
+  const showUpdateStats=job.status==="running"||processed>0||total>0||failed>0||skipped>0;
   document.querySelector(".progress-details").style.display=showUpdateStats?"flex":"none";
   message.textContent=preparing?"دریافت اطلاعات بازار از MEXC...":"پردازش: "+Number(processed).toLocaleString("en-US")+" از "+Number(total).toLocaleString("en-US");
   errorCount.textContent="خطا: "+Number(failed).toLocaleString("en-US");
+  skippedCount.textContent="ردشده (تاریخچه ناکافی): "+Number(skipped).toLocaleString("en-US");
   renderScanErrors(scanErrors,scanErrorCounts);
   const percent=total>0?Math.max(0,Math.min(100,processed/total*100)):0;
   progressFill.style.width=percent+"%";
